@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "*.ejs": "html",
+        "*.alk": "cpp",
+        "unistd.h": "c",
+        "pthread.h": "c",
+        "sqlite3.h": "c",
+        "types.h": "c"
+    }
+}
