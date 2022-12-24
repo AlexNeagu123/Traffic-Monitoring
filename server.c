@@ -79,7 +79,6 @@ static void *treat_client(void *arg) {
 
 		char ErrorMsg[MAX_ERR_SIZE];
 		int parse_code = parse_command(client_command, &parsed, ErrorMsg, logged_client);
-		printf("Urmeaza sa returnez\n");
 
 		if(parse_code == -1) {
 			strncpy(client_response, ErrorMsg, MAX_ERR_SIZE);
@@ -162,18 +161,13 @@ int parse_command(char *command, struct command_info *parsed, char *err, short l
 			return -1;
 		}
 
-		struct user_creds *credentials = malloc(sizeof(struct user_creds));
-		strncpy(credentials->username, parsed->args[1], MAX_CRED);
-		strncpy(credentials->password, parsed->args[2], MAX_CRED);
+		struct user_creds credentials;
 
-		short good_creds = 1;
-		if(!verify_credentials(credentials)) {
+		strncpy(credentials.username, parsed->args[1], MAX_CRED);
+		strncpy(credentials.password, parsed->args[2], MAX_CRED);
+
+		if(!verify_credentials(&credentials)) {
 			strncpy(err, InvalidCredentials, MAX_ERR_SIZE);
-			good_creds = 0;
-		}
-
-		free(credentials);
-		if(!good_creds) {
 			return -1;
 		}
 
@@ -218,7 +212,7 @@ short verify_credentials(struct user_creds *login_credentials) {
 
 	char get_credentials[MAX_COMMAND_SIZE];
 	snprintf(get_credentials, sizeof(get_credentials), 
-				"SELECT * FROM Users WHERE Username = \'%s\' AND Password = \'%s\'\0",  
+				"SELECT * FROM Users WHERE Username = \'%s\' AND Password = \'%s\'",  
 				login_credentials->username, login_credentials->password
 			);
 
@@ -250,9 +244,31 @@ void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_c
 }
 
 void insert_user_db(struct auth_creds *new_user, char *client_response) {
-	printf("%s\n", new_user->username);
-	printf("%s\n", new_user->password);
-	printf("%d\n", new_user->peco_sub);
+	sqlite3 *db;
+
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char insert_user_query[MAX_COMMAND_SIZE];
 	
-	strncpy(client_response, AuthSuccess, CLIENT_RESPONSE);
+	snprintf(insert_user_query, MAX_COMMAND_SIZE, 
+				"INSERT INTO Users (Fname, Lname, Username, Password, Peco_Sub, Weather_Sub, Sports_Sub) "
+				"VALUES(\'%s\', \'%s\', \'%s\', \'%s\', %d, %d, %d)", new_user->fname, new_user->lname, new_user->username, 
+				new_user->password, new_user->peco_sub, new_user->sport_sub, new_user->weather_sub
+			);
+	
+	printf("Database insertion command: %s\n", insert_user_query);
+	
+	char *err = NULL;
+	rc = sqlite3_exec(db, insert_user_query, NULL, NULL, &err);
+	
+	if(rc != SQLITE_OK) {
+		strncpy(client_response, errMsg, CLIENT_RESPONSE);
+		sqlite3_free(err);
+	}
+	else { 
+		strncpy(client_response, AuthSuccess, CLIENT_RESPONSE);
+	}
+
+	sqlite3_close(db);
 }

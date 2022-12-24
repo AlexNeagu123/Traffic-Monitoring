@@ -45,8 +45,8 @@
     }
 
 struct user_creds {
-    char username[MAX_NAME];
-    char password[MAX_NAME];
+    char username[MAX_CRED];
+    char password[MAX_CRED];
 };
 
 struct auth_creds {
@@ -78,9 +78,10 @@ struct Event {
 };
 
 const char *sign_queries[SIGN_QUEST] = {
-    "-> First Name: ", "-> Last Name: ", "-> Username: ", "-> Password: ",
-    "-> Subscribe To Peco Channel? [y/n]: ", "-> Subscribe To Sports Channel? [y/n]: ",
-    "Subscribe To Weather Channel? [y/n]: "};
+        "-> First Name: ", "-> Last Name: ", "-> Username: ", "-> Password: ",
+        "-> Subscribe To Peco Channel? [y/n]: ", "-> Subscribe To Sports Channel? [y/n]: ",
+        "-> Subscribe To Weather Channel? [y/n]: "
+    };
 
 const char *password_query = "-> Password: ";
 const char *ServerIP = "127.0.0.1";
