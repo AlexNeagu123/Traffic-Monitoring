@@ -16,10 +16,10 @@ void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_c
 int configure_server(struct sockaddr_in *server);
 
 short verify_username(char *username);
-short verify_credentials(struct user_creds *login_credentials);
+short verify_credentials(struct user_creds *login_credentials, struct client_data *user_info);
 
 static int search_username(void *data, int argc, char **argv, char **col_name);
-int parse_command(char *command, struct command_info *args, char *err, short logged_user);
+int parse_command(char *command, struct command_info *args, char *err, struct client_data *user_info);
 
 void insert_user_db(struct auth_creds *new_user, char *client_response);
 
@@ -61,7 +61,7 @@ static void *treat_client(void *arg) {
 	pthread_detach(pthread_self());
 	
 	int client_d = th.client_d;	
-	short logged_client = 0;
+	struct client_data user_info = {"", 0, 0, 0, 0}; 
 
 	printf("[S] Am primit client\n");
 	fflush(stdout);
@@ -78,21 +78,23 @@ static void *treat_client(void *arg) {
 		struct command_info parsed;
 
 		char ErrorMsg[MAX_ERR_SIZE];
-		int parse_code = parse_command(client_command, &parsed, ErrorMsg, logged_client);
+		int parse_code = parse_command(client_command, &parsed, ErrorMsg, &user_info);
 
 		if(parse_code == -1) {
 			strncpy(client_response, ErrorMsg, MAX_ERR_SIZE);
 		}
-		else {
-			if(parse_code == 0) {
-				struct auth_creds new_user;
-				fill_auth_struct(&new_user, &parsed);
-				insert_user_db(&new_user, client_response);
-			}
-			if(parse_code == 1) {
-				printf("Loggin completed\n");
-			}
+
+		if(parse_code == 0) {
+			struct auth_creds new_user;
+			fill_auth_struct(&new_user, &parsed);
+			insert_user_db(&new_user, client_response);
 		}
+
+		if(parse_code == 1) {
+			user_info.logged = 1;
+			snprintf(client_response, CLIENT_RESPONSE, "Welcome To Faze, %s!", user_info.username);
+		}
+				
 		int response_len = strlen(client_response);
 		send_message(client_d, client_response, response_len);
 	}	
@@ -119,7 +121,7 @@ int configure_server(struct sockaddr_in *server) {
 	return server_d;
 }
 
-int parse_command(char *command, struct command_info *parsed, char *err, short logged_user) {
+int parse_command(char *command, struct command_info *parsed, char *err, struct client_data *user_info) {
 	int len = strlen(command);
 	char cpy[len + 1];
 
@@ -151,11 +153,10 @@ int parse_command(char *command, struct command_info *parsed, char *err, short l
 	}
 
 	if(!strncmp(command_name, "login", 5)) {
-		if(logged_user) {
+		if(user_info->logged) {
 			strncpy(err, AlreadyLogged, MAX_ERR_SIZE);
 			return -1;
 		} 
-
 		if (parsed->args_nr != 3) {
 			strncpy(err, FieldNumber, MAX_ERR_SIZE);
 			return -1;
@@ -166,7 +167,7 @@ int parse_command(char *command, struct command_info *parsed, char *err, short l
 		strncpy(credentials.username, parsed->args[1], MAX_CRED);
 		strncpy(credentials.password, parsed->args[2], MAX_CRED);
 
-		if(!verify_credentials(&credentials)) {
+		if(!verify_credentials(&credentials, user_info)) {
 			strncpy(err, InvalidCredentials, MAX_ERR_SIZE);
 			return -1;
 		}
@@ -197,12 +198,14 @@ short verify_username(char *username) {
 
 	rc = sqlite3_step(stmt);
 	short return_flag = (rc == SQLITE_DONE);
+
+	sqlite3_finalize(stmt);
 	sqlite3_close(db);
 
 	return return_flag;
 }
 
-short verify_credentials(struct user_creds *login_credentials) {
+short verify_credentials(struct user_creds *login_credentials, struct client_data *user_info) {
 	sqlite3 *db;
 
 	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
@@ -224,8 +227,22 @@ short verify_credentials(struct user_creds *login_credentials) {
 
 	rc = sqlite3_step(stmt);
 	short return_flag = (rc == SQLITE_ROW);
-	sqlite3_close(db);
+	
+	if(return_flag) {
+		const char *username = sqlite3_column_text(stmt, 3);
+		short sub_peco = sqlite3_column_int(stmt, 5);
+		short sub_sports = sqlite3_column_int(stmt, 6);
+		short sub_weather = sqlite3_column_int(stmt, 7);
+		
+		strncpy(user_info->username, username, MAX_CRED);
+		user_info->peco_sub = sub_peco;
+		user_info->sport_sub = sub_sports;
+		user_info->weather_sub = sub_weather;
+	}
 
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+	
 	return return_flag;
 }
 
@@ -259,12 +276,10 @@ void insert_user_db(struct auth_creds *new_user, char *client_response) {
 	
 	printf("Database insertion command: %s\n", insert_user_query);
 	
-	char *err = NULL;
-	rc = sqlite3_exec(db, insert_user_query, NULL, NULL, &err);
-	
+	rc = sqlite3_exec(db, insert_user_query, NULL, NULL, NULL);
+
 	if(rc != SQLITE_OK) {
-		strncpy(client_response, errMsg, CLIENT_RESPONSE);
-		sqlite3_free(err);
+		strncpy(client_response, sqlite3_errmsg(db), CLIENT_RESPONSE);
 	}
 	else { 
 		strncpy(client_response, AuthSuccess, CLIENT_RESPONSE);

@@ -1,0 +1,4 @@
+all:
+	gcc server.c -lpthread -o server -Wall -l sqlite3 -fstack-protectorgcc client.c -lpthread -o client -Wall -l sqlite3 -fstack-protector
+clean:
+	rm -f server client 

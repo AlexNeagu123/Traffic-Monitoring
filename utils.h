@@ -56,6 +56,11 @@ struct auth_creds {
     short peco_sub, sport_sub, weather_sub;
 };
 
+struct client_data {
+    char username[MAX_CRED];
+    short logged, peco_sub, sport_sub, weather_sub;
+};
+
 struct node {
     int cross_id;
     int distance;
@@ -83,7 +88,7 @@ const char *sign_queries[SIGN_QUEST] = {
         "-> Subscribe To Weather Channel? [y/n]: "
     };
 
-const char *password_query = "-> Password: ";
+const char *password_query = "-> password: ";
 const char *ServerIP = "127.0.0.1";
 const char *map_qry_statement = "SELECT * FROM Roads NATURAL JOIN Streets";
 const char *data = "Callback Function Call";

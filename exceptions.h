@@ -1,7 +1,7 @@
 const char *ValidCommand = "Please enter a valid command!";
 const char *TakenUsername = "Sign-up Error! Username is already taken";
 const char *Success = "Success";
-const char *AlreadyLogged = "You are already logged!";
+const char *AlreadyLogged = "You can't perform this action when logged in!";
 const char *FieldNumber = "Invalid Data. Please complete all fields [don't use spaces]!";
 const char *InvalidCredentials = "Login Error! Username/Password incorrect. Please Try Again!";
 const char *BindErr = "Error at bind()";
