@@ -19,8 +19,8 @@ short valid_password(char *psw, int len);
 short valid_sub(char *sub, int len);
 void convert_name(char *name, int len);
 
-int main(int argc, char **argv) {
-	
+int main(int argc, char **argv) 
+{
 	struct sockaddr_in server;
 	int server_d = server_info(&server);
 	printf("[C] M-am conectat la server\n");
@@ -53,7 +53,8 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-int server_info(struct sockaddr_in *server) {
+int server_info(struct sockaddr_in *server) 
+{
 	int server_d = socket(AF_INET, SOCK_STREAM, 0);
 	CHECK(server_d != -1, SocketErr);
 
@@ -66,7 +67,8 @@ int server_info(struct sockaddr_in *server) {
 	return server_d;
 }
 
-static void* update_thread(void *arg) {
+static void* update_thread(void *arg) 
+{
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
@@ -76,7 +78,8 @@ static void* update_thread(void *arg) {
 	return(NULL);
 }
 
-static void* user_thread(void *arg) {
+static void* user_thread(void *arg) 
+{
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
 	int server_d = th.server_d;
@@ -111,7 +114,8 @@ static void* user_thread(void *arg) {
 	return (void *)1;
 }
 
-static void* warn_thread(void *arg) {
+static void* warn_thread(void *arg) 
+{
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
@@ -121,7 +125,8 @@ static void* warn_thread(void *arg) {
 	return(NULL);
 }
 
-static void* notif_thread(void *arg) {
+static void* notif_thread(void *arg) 
+{
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
@@ -131,7 +136,8 @@ static void* notif_thread(void *arg) {
 	return(NULL);
 }
 
-void signup_prompt(char *buff, int *buff_len) {
+void signup_prompt(char *buff, int *buff_len) 
+{
 	char response[MAX_NAME];
 
 	for (int i = 0; i < SIGN_QUEST; ++i) {
@@ -169,7 +175,8 @@ void signup_prompt(char *buff, int *buff_len) {
 	*buff_len = strlen(buff);
 }
 
-void password_prompt(char *buff, int *buff_len) {
+void password_prompt(char *buff, int *buff_len) 
+{
 	char response[MAX_NAME];
 	printf("%s", password_query);
 	fflush(stdout);
@@ -181,7 +188,8 @@ void password_prompt(char *buff, int *buff_len) {
 	*buff_len = strlen(buff);
 }
 
-short is_login(char *buff, int len) {
+short is_login(char *buff, int len) 
+{
 	char cpy[len + 1];
 	strncpy(cpy, buff, len);
 	char *token = strtok(cpy, " ");
@@ -200,7 +208,8 @@ short valid_sub(char *sub, int len) {
 	return (!strcmp(sub, "y") || !strcmp(sub, "n"));
 }
 
-void convert_name(char *name, int len) {
+void convert_name(char *name, int len) 
+{
 	for(int i = 0; i < len; ++i) {
 		if(*(name + i) == ' ') {
 			*(name + i) = name_repl;

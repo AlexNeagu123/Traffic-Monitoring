@@ -18,7 +18,6 @@ int configure_server(struct sockaddr_in *server);
 short verify_username(char *username);
 short verify_credentials(struct user_creds *login_credentials, struct client_data *user_info);
 
-static int search_username(void *data, int argc, char **argv, char **col_name);
 int parse_command(char *command, struct command_info *args, char *err, struct client_data *user_info);
 
 void get_sports_info(char *client_response, char option);
@@ -33,6 +32,8 @@ void format_date_news(char *formatted_message, int *cursor, char *curr_date, dou
 void get_peco_info(char *client_response, char *station);
 void format_peco_info(char *formatted_message, int *cursor, char *peco_name, double gasoline_price, double diesel_price, char *street_name, int peco_id);
 void upper(char *str);
+
+void alter_subscribe_data(char *client_response, char *column_name, char *username, int set_to);
 
 int main()
 {
@@ -82,7 +83,7 @@ static void *treat_client(void *arg)
 	{
 		char client_command[MAX_COMMAND_SIZE];
 		char client_response[CLIENT_RESPONSE];
-		int len = receive_message(client_d, client_command);
+		receive_message(client_d, client_command);
 
 		if(!strncmp(client_command, "quit", 4)) {
 			break;
@@ -158,10 +159,35 @@ static void *treat_client(void *arg)
 
 		if(parse_code == 5) {
 			// logout
-			snprintf(client_response, CLIENT_RESPONSE, "Goodbye, %s!\n", user_info.username);
+			snprintf(client_response, CLIENT_RESPONSE, "Goodbye, %s!", user_info.username);
 			user_info.logged = 0;
 			strncpy(user_info.username, "no user", MAX_CRED);
 			user_info.peco_sub = -1, user_info.sport_sub = -1, user_info.weather_sub = -1;
+		}
+
+		if(parse_code >= 6 && parse_code <= 11) {
+			// subscribe channel or unsubscribe channel 
+			int set_to = 1;
+			if(parse_code >= 9) { 
+				set_to = 0;
+			}
+
+			char column_name[MAX_NAME];
+			
+			if(parse_code == 6 || parse_code == 9) {
+				user_info.peco_sub = set_to;
+				strncpy(column_name, "Peco_Sub", MAX_NAME);
+			}
+			if(parse_code == 7 || parse_code == 10) {
+				user_info.sport_sub = set_to;
+				strncpy(column_name, "Sports_Sub", MAX_NAME);
+			}
+			if(parse_code == 8 || parse_code == 11) {
+				user_info.weather_sub = set_to;
+				strncpy(column_name, "Weather_Sub", MAX_NAME);
+			}
+
+			alter_subscribe_data(client_response, column_name, user_info.username, set_to);
 		}
 
 		int response_len = strlen(client_response);
@@ -314,7 +340,7 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 	}
 
 	if(!strncmp(command_name, "logout", MAX_COMMAND_SIZE)) {
-		if (parsed->args_nr != 1) {
+		if(parsed->args_nr != 1) {
 			strncpy(err, ValidCommand, MAX_ERR_SIZE);
 			return -1;
 		}
@@ -323,6 +349,102 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 			return -1;
 		}
 		return 5;
+	}
+
+	if(!strncmp(command_name, "subscribe-peco", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(user_info->peco_sub) {
+			strncpy(err, AlreadyPecoSub, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 6;
+	}
+
+	if (!strncmp(command_name, "subscribe-sports", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(user_info->sport_sub) {
+			strncpy(err, AlreadySportSub, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 7;
+	}
+
+	if (!strncmp(command_name, "subscribe-weather", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(user_info->weather_sub) {
+			strncpy(err, AlreadyWeatherSub, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 8;
+	}
+
+	if(!strncmp(command_name, "unsubscribe-peco", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->peco_sub) {
+			strncpy(err, PecoSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 9;
+	}
+
+	if(!strncmp(command_name, "unsubscribe-sports", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->sport_sub) {
+			strncpy(err, SportSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 10;
+	}
+
+	if(!strncmp(command_name, "unsubscribe-weather", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->weather_sub) {
+			strncpy(err, WeatherSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 11;
 	}
 
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
@@ -379,7 +501,7 @@ short verify_credentials(struct user_creds *login_credentials, struct client_dat
 	short return_flag = (rc == SQLITE_ROW);
 	
 	if(return_flag) {
-		const char *username = sqlite3_column_text(stmt, 3);
+		const char *username = (const char *) sqlite3_column_text(stmt, 3);
 		short sub_peco = sqlite3_column_int(stmt, 5);
 		short sub_sports = sqlite3_column_int(stmt, 6);
 		short sub_weather = sqlite3_column_int(stmt, 7);
@@ -475,14 +597,14 @@ void get_sports_info(char *client_response, char option)
 			);
 	}
 
-	printf("Database get-sports query: %s\n", get_sports_query);
+	printf("[S] Database get-sports query: %s\n", get_sports_query);
 
 	rc = sqlite3_prepare_v2(db, get_sports_query, -1, &stmt, 0);
 	DB_CHECK(!rc, sqlite3_errmsg(db));
 
 	rc = sqlite3_step(stmt);
 	if (rc == SQLITE_ROW) {
-		const char *data_extracted = sqlite3_column_text(stmt, 2);
+		const char *data_extracted = (const char *) sqlite3_column_text(stmt, 2);
 		strncpy(client_response, data_extracted, CLIENT_RESPONSE);
 	}
 	else {
@@ -531,7 +653,7 @@ void get_weather_info(char *client_response, char *date)
 		snprintf(get_weather_query, MAX_COMMAND_SIZE, "SELECT * FROM Weather WHERE Date = \'%s\'", date);
 	}
 
-	printf("Database get-weather query: %s\n", get_weather_query);
+	printf("[S] Database get-weather query: %s\n", get_weather_query);
 	
 	rc = sqlite3_prepare_v2(db, get_weather_query, -1, &stmt, 0);
 	DB_CHECK(!rc, sqlite3_errmsg(db));
@@ -546,7 +668,7 @@ void get_weather_info(char *client_response, char *date)
 		int cursor = 0;
 
 		while(rc == SQLITE_ROW) {
-			char *curr_date = sqlite3_column_text(stmt, 0);
+			char *curr_date = (char *) sqlite3_column_text(stmt, 0);
 			double morning = sqlite3_column_double(stmt, 1);
 			double evening = sqlite3_column_double(stmt, 2);
 			double night = sqlite3_column_double(stmt, 3);
@@ -596,8 +718,10 @@ void get_peco_info(char *client_response, char *station)
 		snprintf(get_peco_query, MAX_COMMAND_SIZE, "SELECT * FROM Pecos NATURAL JOIN Streets WHERE UPPER(Peco_Name) = \'%s\'", station);
 	}
 
+	printf("[S] Database get-peco query: %s\n", get_peco_query);
+
 	rc = sqlite3_prepare_v2(db, get_peco_query, -1, &stmt, 0);
-	DB_CHECK(!rc, sqlite3_errmsg(db));
+	DB_CHECK(!rc, sqlite3_errmsg(db));	
 	rc = sqlite3_step(stmt);
 	
 	int peco_id = 1;
@@ -609,10 +733,10 @@ void get_peco_info(char *client_response, char *station)
 	}
 	else {
 		while (rc == SQLITE_ROW) {
-			char *peco_name = sqlite3_column_text(stmt, 1);
+			char *peco_name = (char *) sqlite3_column_text(stmt, 1);
 			double gasoline_price = sqlite3_column_double(stmt, 3);
 			double diesel_price = sqlite3_column_double(stmt, 4);
-			char *street_name = sqlite3_column_text(stmt, 5);
+			char *street_name = (char *) sqlite3_column_text(stmt, 5);
 
 			format_peco_info(formatted_message, &cursor, peco_name, gasoline_price, diesel_price, street_name, peco_id);
 
@@ -647,4 +771,33 @@ void upper(char *str)
 			str[i] -= 'a' - 'A';
 		}
 	}
+}
+
+void alter_subscribe_data(char *client_response, char *column_name, char *username,  int set_to) 
+{
+	sqlite3 *db;
+	
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char alter_sub_query[MAX_COMMAND_SIZE];
+	snprintf(alter_sub_query, MAX_COMMAND_SIZE, "UPDATE Users SET %s = %d WHERE Username = \'%s\'",
+			column_name, set_to, username
+		);
+	
+	printf("[S] Altering the Users table: %s\n", alter_sub_query);
+
+	char *err_msg = NULL;
+	rc = sqlite3_exec(db, alter_sub_query, NULL, NULL, &err_msg);
+
+	DB_CHECK(!rc, err_msg);
+
+	if(!set_to) {
+		strncpy(client_response, UnsubMessage, CLIENT_RESPONSE);
+	}
+	else {
+		strncpy(client_response, SubMessage, CLIENT_RESPONSE);
+	}
+
+	sqlite3_close(db);
 }
