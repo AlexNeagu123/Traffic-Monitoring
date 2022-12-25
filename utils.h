@@ -28,6 +28,7 @@
 #define SIGN_QUEST 7
 #define MAX_ERR_SIZE 512
 #define MAX_CRED 255
+#define DATE_SIZE 11
 
 #define CHECK(condition, message) \
     if (!(condition))             \

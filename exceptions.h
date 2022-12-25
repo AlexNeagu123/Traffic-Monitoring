@@ -14,4 +14,9 @@ const char *UsernameErr = "Invalid Username!\nUsername should contain minimum 5 
 const char *PasswordErr = "Invalid Password!\nPassword should contain minimum 6 characters and shouldn't contain spaces.\n";
 const char *SubErr = "Invalid Response !\nPlease type either y or n !\n ";
 const char *AuthSuccess = "Authentification Done Successfully!";
-
+const char *InvalidSportOpt = "The second argument should be an option between [0, 1, 2]!";
+const char *ShouldLog = "You should be logged in to complete this command!";
+const char *SportSubscribe = "You should be subscribed to the sports channel to complete this command!";
+const char *NoDate = "The argument you have typed is not a valid date [dd-mm-yyyy]!";
+const char *WeatherSubscribe = "You should be subscribed to the weather channel to complete this command!";
+const char *PecoSubscribe = "You should be subscribed to the peco channel to complete this command!";

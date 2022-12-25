@@ -21,10 +21,22 @@ short verify_credentials(struct user_creds *login_credentials, struct client_dat
 static int search_username(void *data, int argc, char **argv, char **col_name);
 int parse_command(char *command, struct command_info *args, char *err, struct client_data *user_info);
 
+void get_sports_info(char *client_response, char option);
 void insert_user_db(struct auth_creds *new_user, char *client_response);
 
-int main() {
-	
+short is_option(char *opt);
+short is_date(char *date);
+short is_digit(char dig);
+
+void get_weather_info(char *client_response, char *date);
+void format_date_news(char *formatted_message, int *cursor, char *curr_date, double morning, double evening, double night, int id);
+void get_peco_info(char *client_response, char *station);
+void format_peco_info(char *formatted_message, int *cursor, char *peco_name, double gasoline_price, double diesel_price, char *street_name, int peco_id);
+void upper(char *str);
+
+int main()
+{
+
 	struct sockaddr_in server;
 	struct sockaddr_in client;
 
@@ -52,10 +64,10 @@ int main() {
 	}
 
 	return 0;
-
 }
 
-static void *treat_client(void *arg) {
+static void *treat_client(void *arg)  
+{
 	struct thread_info th;
 	th = *((struct thread_info *) arg);
 	pthread_detach(pthread_self());
@@ -66,7 +78,8 @@ static void *treat_client(void *arg) {
 	printf("[S] Am primit client\n");
 	fflush(stdout);
 
-	while(1) {
+	while(1) 
+	{
 		char client_command[MAX_COMMAND_SIZE];
 		char client_response[CLIENT_RESPONSE];
 		int len = receive_message(client_d, client_command);
@@ -94,7 +107,63 @@ static void *treat_client(void *arg) {
 			user_info.logged = 1;
 			snprintf(client_response, CLIENT_RESPONSE, "Welcome To Faze, %s!", user_info.username);
 		}
-				
+		
+		if(parse_code == 2) {
+			// get-sports-info
+			char option = '?';
+			if(parsed.args_nr == 2) {
+				assert(strlen(parsed.args[1]) == 1);
+				option = parsed.args[1][0];
+			}
+			get_sports_info(client_response, option);	
+		}
+
+		if(parse_code == 3) {
+			//get-weather-info
+			char date[DATE_SIZE];
+			if(parsed.args_nr == 2) {
+				strncpy(date, parsed.args[1], DATE_SIZE);
+			}
+			else {
+				strcpy(date, "any");
+			}
+
+			get_weather_info(client_response, date);
+			
+			int len = strlen(client_response);
+			while(len - 1 >= 0 && client_response[len - 1] == '\n') {
+				client_response[len - 1] = '\0';
+				len--;
+			}
+		}
+
+		if(parse_code == 4) {
+			// get-peco-info 
+			char station[MAX_NAME];
+			if(parsed.args_nr == 2) {
+				strncpy(station, parsed.args[1], MAX_NAME);
+			}
+			else {
+				strncpy(station, "any", MAX_NAME);
+			}
+
+			get_peco_info(client_response, station);
+
+			int len = strlen(client_response);
+			while (len - 1 >= 0 && client_response[len - 1] == '\n') {
+				client_response[len - 1] = '\0';
+				len--;
+			}
+		}
+
+		if(parse_code == 5) {
+			// logout
+			snprintf(client_response, CLIENT_RESPONSE, "Goodbye, %s!\n", user_info.username);
+			user_info.logged = 0;
+			strncpy(user_info.username, "no user", MAX_CRED);
+			user_info.peco_sub = -1, user_info.sport_sub = -1, user_info.weather_sub = -1;
+		}
+
 		int response_len = strlen(client_response);
 		send_message(client_d, client_response, response_len);
 	}	
@@ -103,7 +172,8 @@ static void *treat_client(void *arg) {
 	return(NULL);
 }
 
-int configure_server(struct sockaddr_in *server) {
+int configure_server(struct sockaddr_in *server) 
+{
 	int server_d = socket(AF_INET, SOCK_STREAM, 0);
 	CHECK(server_d != -1, SocketErr);
 	int reuse = 1;
@@ -121,7 +191,8 @@ int configure_server(struct sockaddr_in *server) {
 	return server_d;
 }
 
-int parse_command(char *command, struct command_info *parsed, char *err, struct client_data *user_info) {
+int parse_command(char *command, struct command_info *parsed, char *err, struct client_data *user_info) 
+{
 	int len = strlen(command);
 	char cpy[len + 1];
 
@@ -143,7 +214,11 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 
 	char *command_name = parsed->args[0];
 	
-	if(!strncmp(command_name, "sign-up", 7)) {
+	if(!strncmp(command_name, "sign-up", MAX_COMMAND_SIZE)) {
+		if (user_info->logged) {
+			strncpy(err, AlreadyLogged, MAX_ERR_SIZE);
+			return -1;
+		}
 		if(!verify_username(parsed->args[3])) {
 			strncpy(err, TakenUsername, MAX_ERR_SIZE);
 			return -1;
@@ -152,7 +227,7 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 		return 0;
 	}
 
-	if(!strncmp(command_name, "login", 5)) {
+	if(!strncmp(command_name, "login", MAX_COMMAND_SIZE)) {
 		if(user_info->logged) {
 			strncpy(err, AlreadyLogged, MAX_ERR_SIZE);
 			return -1;
@@ -175,21 +250,95 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 		strncpy(err, Success, MAX_ERR_SIZE);
 		return 1;
 	}
+	
+	if(!strncmp(command_name, "get-sports-info", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1 && parsed->args_nr != 2) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(parsed->args_nr == 2 && !is_option(parsed->args[1])) {
+			strncpy(err, InvalidSportOpt, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->sport_sub) {
+			strncpy(err, SportSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+
+		strncpy(err, Success, MAX_ERR_SIZE);
+		return 2;	
+	}
+
+	if(!strncmp(command_name, "get-weather-info", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1 && parsed->args_nr != 2) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(parsed->args_nr == 2 && !is_date(parsed->args[1])) {
+			strncpy(err, NoDate, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->weather_sub) {
+			strncpy(err, WeatherSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+
+		strncpy(err, Success, MAX_ERR_SIZE);
+		return 3;
+	}
+
+	if(!strncmp(command_name, "get-peco-info", MAX_COMMAND_SIZE)) {
+		if(parsed->args_nr != 1 && parsed->args_nr != 2) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->peco_sub) {
+			strncpy(err, PecoSubscribe, MAX_ERR_SIZE);
+			return -1;
+		}
+
+		strncpy(err, Success, MAX_ERR_SIZE);
+		return 4;
+	}
+
+	if(!strncmp(command_name, "logout", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 5;
+	}
 
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
 	return -1;
 }
 
-short verify_username(char *username) {
+short verify_username(char *username) 
+{
 	sqlite3 *db;
+	sqlite3_stmt *stmt;
 
 	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
 	DB_CHECK(!rc, sqlite3_errmsg(db));
-	
-	sqlite3_stmt *stmt;
 
 	char get_usernames[MAX_COMMAND_SIZE];
-	snprintf(get_usernames, sizeof(get_usernames), "SELECT * FROM Users WHERE Username = \'%s\'\0", username);
+	snprintf(get_usernames, sizeof(get_usernames), "SELECT * FROM Users WHERE Username = \'%s\'", username);
 
 	printf("[S] Database Query On Username Field: %s\n", get_usernames);
 
@@ -205,7 +354,8 @@ short verify_username(char *username) {
 	return return_flag;
 }
 
-short verify_credentials(struct user_creds *login_credentials, struct client_data *user_info) {
+short verify_credentials(struct user_creds *login_credentials, struct client_data *user_info) 
+{
 	sqlite3 *db;
 
 	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
@@ -242,11 +392,12 @@ short verify_credentials(struct user_creds *login_credentials, struct client_dat
 
 	sqlite3_finalize(stmt);
 	sqlite3_close(db);
-	
+
 	return return_flag;
 }
 
-void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_command) {
+void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_command) 
+{
 	// command should have (1+) 7 arguments 
 	assert(parsed_command -> args_nr == 8);
 
@@ -256,11 +407,12 @@ void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_c
 	strncpy(new_user->password, parsed_command->args[4], MAX_CRED);
 	
 	new_user->peco_sub = (!strcmp(parsed_command->args[5], "y") ? 1 : 0);
-	new_user->sport_sub = (!strcmp(parsed_command->args[5], "y") ? 1 : 0);
-	new_user->weather_sub = (!strcmp(parsed_command->args[5], "y") ? 1 : 0);
+	new_user->sport_sub = (!strcmp(parsed_command->args[6], "y") ? 1 : 0);
+	new_user->weather_sub = (!strcmp(parsed_command->args[7], "y") ? 1 : 0);
 }
 
-void insert_user_db(struct auth_creds *new_user, char *client_response) {
+void insert_user_db(struct auth_creds *new_user, char *client_response) 
+{
 	sqlite3 *db;
 
 	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
@@ -286,4 +438,213 @@ void insert_user_db(struct auth_creds *new_user, char *client_response) {
 	}
 
 	sqlite3_close(db);
+}
+
+short is_option(char *opt) 
+{
+	return (
+		!strcmp(opt, "0")
+		|| !strcmp(opt, "1")
+		|| !strcmp(opt, "2")
+	);
+}
+
+void get_sports_info(char *client_response, char option) 
+{
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char get_sports_query[MAX_COMMAND_SIZE];
+	char option_sport[MAX_NAME] = "";
+
+	if(option == '?') {
+		snprintf(get_sports_query, MAX_COMMAND_SIZE, "SELECT * FROM Sports ORDER BY RANDOM() LIMIT 1");
+	}
+	else {
+		switch(option) {
+			case '0' : strncpy(option_sport, "Football", MAX_NAME); break;
+			case '1' : strncpy(option_sport, "Basketball", MAX_NAME); break;
+			case '2' : strncpy(option_sport, "Tennis", MAX_NAME); break;
+		}
+
+		snprintf(get_sports_query, MAX_COMMAND_SIZE, "SELECT * FROM Sports WHERE Sport_Type = \'%s\'"
+				" ORDER BY RANDOM() LIMIT 1", option_sport	
+			);
+	}
+
+	printf("Database get-sports query: %s\n", get_sports_query);
+
+	rc = sqlite3_prepare_v2(db, get_sports_query, -1, &stmt, 0);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		const char *data_extracted = sqlite3_column_text(stmt, 2);
+		strncpy(client_response, data_extracted, CLIENT_RESPONSE);
+	}
+	else {
+		snprintf(client_response, CLIENT_RESPONSE, "There any news about %s in the database:(", option_sport);
+	}
+
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+}
+
+short is_date(char *date) 
+{
+	int date_len = strlen(date);
+	if(date_len != 10) {
+		return 0;
+	}
+	if(date[2] != '-' || date[5] != '-') {
+		return 0;
+	}
+	for(int i = 0; i < date_len; i++) {
+		if(i != 2 && i != 5 && !is_digit(date[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+short is_digit(char dig) {
+	return (dig >= '0' && dig <= '9');
+}
+
+void get_weather_info(char *client_response, char *date) 
+{
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char get_weather_query[MAX_COMMAND_SIZE];
+	
+	if(!strcmp(date, "any")) {
+		snprintf(get_weather_query, MAX_COMMAND_SIZE, "SELECT * FROM Weather");
+	}
+	else {
+		snprintf(get_weather_query, MAX_COMMAND_SIZE, "SELECT * FROM Weather WHERE Date = \'%s\'", date);
+	}
+
+	printf("Database get-weather query: %s\n", get_weather_query);
+	
+	rc = sqlite3_prepare_v2(db, get_weather_query, -1, &stmt, 0);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+	rc = sqlite3_step(stmt);
+
+	if(rc == SQLITE_DONE) {
+		strncpy(client_response, "No news available for the corresponding date :(", CLIENT_RESPONSE);
+	}
+	else {
+		int news_id = 1;
+		char formatted_message[CLIENT_RESPONSE];
+		int cursor = 0;
+
+		while(rc == SQLITE_ROW) {
+			char *curr_date = sqlite3_column_text(stmt, 0);
+			double morning = sqlite3_column_double(stmt, 1);
+			double evening = sqlite3_column_double(stmt, 2);
+			double night = sqlite3_column_double(stmt, 3);
+
+			format_date_news(formatted_message, &cursor, curr_date, morning, evening, night, news_id);
+			
+			rc = sqlite3_step(stmt);
+			news_id++;
+		}
+		
+		DB_CHECK(rc == SQLITE_DONE, sqlite3_errmsg(db));
+		strncpy(client_response, formatted_message, CLIENT_RESPONSE);
+	}
+
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+}
+
+void format_date_news(char *formatted_message, int *cursor, char *curr_date, double morning, double evening, double night, int id) 
+{
+	char atomic_news[CLIENT_RESPONSE];
+	snprintf(atomic_news, CLIENT_RESPONSE, 
+			"%d. On date %s, the following temperatures are forecasted:\n%fC in the Morning\n%fC in the Evening\n%fC on Night\n",
+			id, curr_date, morning, evening, night
+		);
+	
+	int len_news = strlen(atomic_news);
+	strncpy(formatted_message + *cursor, atomic_news, CLIENT_RESPONSE - *cursor);
+	*cursor += len_news;
+}
+
+void get_peco_info(char *client_response, char *station) 
+{
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char get_peco_query[MAX_COMMAND_SIZE];
+	
+	if(!strcmp(station, "any")) {
+		snprintf(get_peco_query, MAX_COMMAND_SIZE, "SELECT * FROM Pecos NATURAL JOIN Streets");
+	}
+	else {
+		upper(station);
+		snprintf(get_peco_query, MAX_COMMAND_SIZE, "SELECT * FROM Pecos NATURAL JOIN Streets WHERE UPPER(Peco_Name) = \'%s\'", station);
+	}
+
+	rc = sqlite3_prepare_v2(db, get_peco_query, -1, &stmt, 0);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+	rc = sqlite3_step(stmt);
+	
+	int peco_id = 1;
+	char formatted_message[CLIENT_RESPONSE];
+	int cursor = 0;
+	
+	if(rc == SQLITE_DONE) {
+		strncpy(client_response, "No pecos with this name available nearby :(", CLIENT_RESPONSE);
+	}
+	else {
+		while (rc == SQLITE_ROW) {
+			char *peco_name = sqlite3_column_text(stmt, 1);
+			double gasoline_price = sqlite3_column_double(stmt, 3);
+			double diesel_price = sqlite3_column_double(stmt, 4);
+			char *street_name = sqlite3_column_text(stmt, 5);
+
+			format_peco_info(formatted_message, &cursor, peco_name, gasoline_price, diesel_price, street_name, peco_id);
+
+			rc = sqlite3_step(stmt);
+			peco_id++;
+		}
+
+		DB_CHECK(rc == SQLITE_DONE, sqlite3_errmsg(db));
+		strncpy(client_response, formatted_message, CLIENT_RESPONSE);
+	}
+
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+}
+
+void format_peco_info(char *formatted_message, int *cursor, char *peco_name, double gasoline_price, double diesel_price, char *street_name, int peco_id) 
+{
+	char atomic_info[CLIENT_RESPONSE];
+	snprintf(atomic_info, CLIENT_RESPONSE,
+			 "%d. There is a %s filling station on the %s street. The prices are as follows:\nGasoline - %fRON\nDiesel - %fRON\n",
+			 peco_id, peco_name, street_name, gasoline_price, diesel_price);
+
+	int len_info = strlen(atomic_info);
+	strncpy(formatted_message + *cursor, atomic_info, CLIENT_RESPONSE - *cursor);
+	*cursor += len_info;
+}
+
+void upper(char *str) 
+{
+	for(int i = 0; *(str + i) != '\0'; i++) {
+		if(str[i] >= 'a' && str[i] <= 'z') {
+			str[i] -= 'a' - 'A';
+		}
+	}
 }
