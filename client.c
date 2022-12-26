@@ -1,9 +1,18 @@
 #include "utils.h"
 
+struct GPS {
+	double speed, distance;
+	char street_name[MAX_STR_NAME];
+	int prd_cross, nxt_cross;
+};
+
 struct thread_info {
 	int id;
 	int server_d;
+	struct GPS *client_gps;
 };
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int server_info(struct sockaddr_in *server);
 void signup_prompt(char *buff, int *len);
@@ -18,6 +27,7 @@ short valid_username(char *usr, int len);
 short valid_password(char *psw, int len);
 short valid_sub(char *sub, int len);
 void convert_name(char *name, int len);
+void ask_receive_from_server(int server_d, char *command, int comm_len, char *client_response);
 
 int main(int argc, char **argv) 
 {
@@ -27,11 +37,14 @@ int main(int argc, char **argv)
 
 	pthread_t thread_pool[CTHREADS];
 	struct thread_info *th[4];
+
+	struct GPS *driver_gps = (struct GPS *) malloc(sizeof(struct GPS));
 	
 	for(int th_cnt = 0; th_cnt < CTHREADS; ++th_cnt) {
 		th[th_cnt] = (struct thread_info *) malloc(sizeof(struct thread_info));
-		th[th_cnt] -> id = th_cnt;
-		th[th_cnt] -> server_d = server_d;
+		th[th_cnt]->id = th_cnt;
+		th[th_cnt]->server_d = server_d;
+		th[th_cnt]->client_gps = driver_gps;
 	}
 
 	CHECK(!pthread_create(&thread_pool[0], NULL, &user_thread, th[0]), "Error at pthread_create()");
@@ -73,8 +86,83 @@ static void* update_thread(void *arg)
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
 	int server_d = th.server_d;
-	// printf("Sunt pe threadul: %d\n", th.id);
+	
+	srand(time(0));
 
+	struct GPS *gps = th.client_gps;
+	struct city_map *map = NULL;
+	struct node *j = NULL;
+
+	get_map_info(&map);
+
+	int neighbours[ROADS];
+	memset(neighbours, 0, sizeof(neighbours));
+
+	// counting the number of neighbouring intersection for each intersection
+	for(int i = 0; i < ROADS; ++i) {
+		if(map->adj[i]) {
+			j = map->adj[i];
+			while(j != NULL) {
+				neighbours[i]++;
+				j = j->next;
+			}
+		}
+	}
+
+	int init_cross = rand() % ROADS;
+	while(map->adj[init_cross] == NULL) {
+		init_cross = rand() % ROADS;
+	}
+
+	int pos = rand() % neighbours[init_cross];
+	j = map->adj[init_cross];
+
+	while(pos && j->next != NULL) {
+		j = j->next;
+		pos--;
+	}
+
+	gps->prd_cross = init_cross;
+	gps->nxt_cross = j->cross_id;
+	gps->distance = j->distance;
+	strncpy(gps->street_name, j->street_name, MAX_STR_NAME);
+	gps->speed = 20 + rand() % 31;
+
+	// printf("%d %d %f %f\n", gps->prd_cross, gps->nxt_cross, gps->distance, gps->speed);
+	
+	while(1) {
+		// updates after every second
+		sleep(1);
+		// speed * 1000 / 3600 * 3 seconds (1 second in reality = 3 seconds in the simulation)
+		double travelled_distance = gps->speed * (1000.0 / 3600.0) * 3;
+		gps->distance -= travelled_distance;
+		
+		if(gps->distance < 0) {
+			// randomly choose the next intersection to go 
+			int nxt_pos = rand() % neighbours[gps->nxt_cross];
+			j = map->adj[gps->nxt_cross];
+
+			while (nxt_pos && j->next != NULL) {
+				j = j->next;
+				nxt_pos--;
+			}
+			// update everything in the gps structure 
+			int aux = gps->nxt_cross;
+			gps->nxt_cross = j->cross_id;
+			gps->prd_cross = aux;
+			gps->distance = j->distance;
+			strncpy(gps->street_name, j->street_name, MAX_STR_NAME);
+		}
+		
+		int decision = rand() % 3;
+		// (0 -> lower the speed with 1 km/h) (1 -> maintain the current speed) (2 -> increase the speed with 1 km/h)
+		if(decision == 0 && gps->speed > 10) {
+			gps->speed--;
+		}
+		else if(decision == 1) {
+			gps->speed++;
+		}
+	}
 	return(NULL);
 }
 
@@ -100,15 +188,14 @@ static void* user_thread(void *arg)
 			password_prompt(user_input, &len);
 		}
 
- 		send_message(server_d, user_input, len);
-
 		if (!strncmp(user_input, "quit", 4)) {
 			return (void *)0;
 		}
 
 		char client_response[CLIENT_RESPONSE];
-		receive_message(server_d, client_response);
+		ask_receive_from_server(server_d, user_input, len, client_response);
 		printf("Serverul mi-a raspuns cu %s\n", client_response);
+	
 	}
 
 	return (void *)1;
@@ -121,7 +208,21 @@ static void* warn_thread(void *arg)
 	pthread_detach(pthread_self());
 	int server_d = th.server_d;
 	//printf("Sunt pe threadul: %d\n", th.id);
+	struct GPS *gps = th.client_gps;
 	
+	while(1) 
+	{
+		sleep(1);
+
+		char auto_command[MAX_COMMAND_SIZE];
+		snprintf(auto_command, MAX_COMMAND_SIZE, "auto-message %f %s", gps->speed, gps->street_name);		
+		int comm_len = strlen(auto_command);
+
+		char client_response[CLIENT_RESPONSE];
+		ask_receive_from_server(server_d, auto_command, comm_len, client_response);
+		printf("Serverul a raspuns cu %s\n", client_response);
+	}
+
 	return(NULL);
 }
 
@@ -215,4 +316,13 @@ void convert_name(char *name, int len)
 			*(name + i) = name_repl;
 		}
 	}
+}
+
+void ask_receive_from_server(int server_d, char *command, int comm_len, char *client_response)
+{
+	pthread_mutex_lock(&mutex);
+	send_message(server_d, command, comm_len);
+
+	receive_message(server_d, client_response);
+	pthread_mutex_unlock(&mutex);
 }

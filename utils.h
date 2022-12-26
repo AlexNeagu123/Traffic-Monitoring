@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <sqlite3.h>
 #include <arpa/inet.h>
+#include <time.h>  
 #include "messages.h"
 
 #define PORT 2610
@@ -73,10 +74,6 @@ struct city_map {
     struct node *adj[ROADS];
 };
 
-struct GPS {
-    double speed;
-    char street_name[MAX_STR_NAME];
-};
 
 struct Event {
     int evcode;
@@ -95,7 +92,6 @@ const char *map_qry_statement = "SELECT * FROM Roads NATURAL JOIN Streets";
 const char *data = "Callback Function Call";
 char name_repl = '_';
 char *errMsg = 0;
-struct city_map *map;
 
 int read_from_user(int fd, char *buff) {
     int i = 0;
@@ -136,7 +132,7 @@ void add_edge(struct node **group, int vec, int dist, char *str_name) {
 }
 
 static int get_map(void *data, int argc, char **argv, char **col_name) {
-    struct city_map *cmap = (struct city_map *)data;
+    struct city_map *cmap = *((struct city_map **)data);
     int u = atoi(argv[1]);
     int v = atoi(argv[2]);
     add_edge(&cmap->adj[u], v, atoi(argv[4]), argv[5]);
@@ -144,15 +140,14 @@ static int get_map(void *data, int argc, char **argv, char **col_name) {
     return 0;
 }
 
-void get_map_info() {
+void get_map_info(struct city_map **map) {
     sqlite3 *db;
-    map = malloc(sizeof(struct city_map));
+    *map = (struct city_map *) malloc(sizeof(struct city_map));
     int rc = sqlite3_open("Orasul_Chisinau.db", &db);
     DB_CHECK(!rc, sqlite3_errmsg(db));
     rc = sqlite3_exec(db, map_qry_statement, get_map, (void *)map, &errMsg);
     DB_CHECK(!rc, errMsg);
     sqlite3_close(db);
 }
-
 
 #endif 

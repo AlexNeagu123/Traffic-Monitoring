@@ -10,6 +10,11 @@ struct command_info {
 	int args_nr;
 };
 
+struct speed_limits {
+	char street_name[MAX_STR_NAME];
+	double limit;
+};
+
 static void *treat_client(void *arg);
 void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_command);
 
@@ -34,6 +39,8 @@ void format_peco_info(char *formatted_message, int *cursor, char *peco_name, dou
 void upper(char *str);
 
 void alter_subscribe_data(char *client_response, char *column_name, char *username, int set_to);
+void check_speed(char *client_response, double speed, char *street_name);
+void get_limits_info(struct speed_limits *global_limits);
 
 int main()
 {
@@ -45,7 +52,9 @@ int main()
 	int th_cnt = 0;
 	int server_d = configure_server(&server);
 	
-	get_map_info();
+	struct speed_limits *global_limits[ROADS];
+	//get_limits_info(global_limits);
+	// get_map_info();
 	
 	CHECK(listen(server_d, 10) != -1, ListenErr);
 
@@ -188,6 +197,20 @@ static void *treat_client(void *arg)
 			}
 
 			alter_subscribe_data(client_response, column_name, user_info.username, set_to);
+		}
+
+		if(parse_code == 12) {
+			double speed = (double) atof(parsed.args[1]);
+			char street_name[MAX_STR_NAME];
+			
+			strcpy(street_name, parsed.args[2]);
+			for(int i = 3; i < parsed.args_nr; ++i) {
+				strcat(street_name, " ");
+				strcat(street_name, parsed.args[i]);
+			}
+
+			printf("%f %s\n", speed, street_name);
+			check_speed(client_response, speed, street_name);
 		}
 
 		int response_len = strlen(client_response);
@@ -445,6 +468,13 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 			return -1;
 		}
 		return 11;
+	}
+
+	if(!strncmp(command_name, "auto-message", MAX_COMMAND_SIZE)) {
+		// this is an automatic message for warnings 100% 
+		// TO-DO make a separate check in the user_thread if the user doesnt type auto-message by hand :)))
+		assert(parsed->args_nr >= 3);
+		return 12;
 	}
 
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
@@ -800,4 +830,8 @@ void alter_subscribe_data(char *client_response, char *column_name, char *userna
 	}
 
 	sqlite3_close(db);
+}
+
+void check_speed(char *client_response, double speed, char *street_name) {
+
 }
