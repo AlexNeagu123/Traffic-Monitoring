@@ -29,6 +29,11 @@ short valid_sub(char *sub, int len);
 void convert_name(char *name, int len);
 void ask_receive_from_server(int server_d, char *command, int comm_len, char *client_response);
 
+short is_report(char *buff, int len);
+short valid_report(char *buff, int len);
+void format_report(char *user_input, int *len, char *street_name);
+short check_reserved(char *user_input, int len);
+
 int main(int argc, char **argv) 
 {
 	struct sockaddr_in server;
@@ -170,7 +175,10 @@ static void* user_thread(void *arg)
 {
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
+
+	struct GPS *gps = th.client_gps;
 	int server_d = th.server_d;
+	
 	// printf("Sunt pe threadul: %d\n", th.id);
 
 	while(1) {
@@ -181,11 +189,8 @@ static void* user_thread(void *arg)
 		char user_input[MAX_COMMAND_SIZE];
 		int len = read_from_user(0, user_input);
 		
-		if(!strncmp(user_input, "sign-up", len)) {
-			signup_prompt(user_input, &len);
-		}
-		else if(is_login(user_input, len)) {
-			password_prompt(user_input, &len);
+		if(!len) {
+			continue;
 		}
 
 		if (!strncmp(user_input, "quit", 4)) {
@@ -193,7 +198,33 @@ static void* user_thread(void *arg)
 		}
 
 		char client_response[CLIENT_RESPONSE];
+
+		if (check_reserved(user_input, len)) {
+			strncpy(client_response, ValidCommand, CLIENT_RESPONSE);
+			goto print_msg;
+		}
+
+		if (!strcmp(user_input, "sign-up")) {
+			signup_prompt(user_input, &len);
+		}
+		
+		if (is_login(user_input, len)) {
+			password_prompt(user_input, &len);
+		}
+
+		if (is_report(user_input, len)) {
+			if (!valid_report(user_input, len)) {
+				strncpy(client_response, ValidCommand, CLIENT_RESPONSE);
+				goto print_msg;
+			}
+			else {
+				format_report(user_input, &len, gps->street_name);
+			}
+		}
+
 		ask_receive_from_server(server_d, user_input, len, client_response);
+		
+		print_msg:
 		printf("Serverul mi-a raspuns cu %s\n", client_response);
 	
 	}
@@ -220,7 +251,9 @@ static void* warn_thread(void *arg)
 
 		char client_response[CLIENT_RESPONSE];
 		ask_receive_from_server(server_d, auto_command, comm_len, client_response);
-		printf("Serverul a raspuns cu %s\n", client_response);
+		// if (strncmp(client_response, NoNotif, CLIENT_RESPONSE)) {
+		// 	printf("Serverul a raspuns cu %s\n", client_response);
+		// }
 	}
 
 	return(NULL);
@@ -233,7 +266,21 @@ static void* notif_thread(void *arg)
 	pthread_detach(pthread_self());
 	int server_d = th.server_d;
 	//printf("Sunt pe threadul: %d\n", th.id);
-	
+	while(1) {
+		sleep(5);
+
+		char get_incidents_command[MAX_COMMAND_SIZE];
+		strncpy(get_incidents_command, "get-events", MAX_COMMAND_SIZE);
+		int comm_len = strlen(get_incidents_command);
+
+		char client_response[CLIENT_RESPONSE];
+		ask_receive_from_server(server_d, get_incidents_command, comm_len, client_response);
+
+		if(strncmp(client_response, NoNotif, CLIENT_RESPONSE)) {
+			printf("Serverul a raspuns cu %s\n", client_response);
+		}
+	}
+
 	return(NULL);
 }
 
@@ -325,4 +372,53 @@ void ask_receive_from_server(int server_d, char *command, int comm_len, char *cl
 
 	receive_message(server_d, client_response);
 	pthread_mutex_unlock(&mutex);
+}
+
+short is_report(char *buff, int len)
+{
+	char cpy[len + 1];
+	strncpy(cpy, buff, len + 1);
+	char *token = strtok(cpy, " ");
+	return !strcmp(token, "report") ? 1 : 0;
+}
+
+short valid_report(char *buff, int len) 
+{
+	char cpy[MAX_COMMAND_SIZE];
+	strncpy(cpy, buff, MAX_COMMAND_SIZE);
+
+	char *token = strtok(cpy, " ");
+	
+	char last_param[MAX_COMMAND_SIZE];
+	int nr_tokens = 0;
+
+	while (token != NULL) {
+		strncpy(last_param, token, MAX_COMMAND_SIZE);
+		token = strtok(NULL, " ");
+		nr_tokens++;
+	}
+
+	if(nr_tokens != 2) {
+		return 0;
+	}
+
+	if(strlen(last_param) != 1) {
+		return 0;
+	}
+
+	char option = last_param[0];
+	return (option >= '0' && option <= '3');
+}
+
+void format_report(char *user_input, int *len, char *street_name) {
+	strcat(user_input, " ");
+	strcat(user_input, street_name);
+	*len = strlen(user_input);
+}
+
+short check_reserved(char *user_input, int len) {
+	char cpy[len + 1];
+	strncpy(cpy, user_input, len + 1);
+	char *token = strtok(cpy, " ");
+	return (!strcmp(token, "auto-message") || !strcmp(token, "get-events"));
 }

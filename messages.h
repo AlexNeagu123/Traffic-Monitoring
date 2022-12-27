@@ -25,3 +25,5 @@ const char *AlreadySportSub = "You are already subscribed to the sports channel!
 const char* AlreadyWeatherSub = "You are already subscribed to the weather channel!";
 const char *UnsubMessage = "Your unsubscription request has been processed. We are sad to see you go.";
 const char *SubMessage = "Your subscription request has been accepted. Welcome to the channel!";
+const char *UnknownStreet = "The street you are currently on is not find in our database.";
+const char *NoNotif = "No notification";

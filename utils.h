@@ -30,6 +30,8 @@
 #define MAX_ERR_SIZE 512
 #define MAX_CRED 255
 #define DATE_SIZE 11
+#define STR_NR 30
+#define MAX_INCIDENTS 1000
 
 #define CHECK(condition, message) \
     if (!(condition))             \

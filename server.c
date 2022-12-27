@@ -11,9 +11,21 @@ struct command_info {
 };
 
 struct speed_limits {
-	char street_name[MAX_STR_NAME];
-	double limit;
+	int nr;
+	char street_names[STR_NR][MAX_STR_NAME];
+	double limits[STR_NR];
 };
+
+struct speed_limits *global_limits;
+
+struct incidents {
+	int nr;
+	short type[MAX_INCIDENTS];
+	char street[MAX_INCIDENTS][MAX_STR_NAME];
+	char by_user[MAX_INCIDENTS][MAX_CRED];
+};
+
+struct incidents *incidents_list;
 
 static void *treat_client(void *arg);
 void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_command);
@@ -39,8 +51,12 @@ void format_peco_info(char *formatted_message, int *cursor, char *peco_name, dou
 void upper(char *str);
 
 void alter_subscribe_data(char *client_response, char *column_name, char *username, int set_to);
-void check_speed(char *client_response, double speed, char *street_name);
-void get_limits_info(struct speed_limits *global_limits);
+void check_speed(char *client_response, double speed, char *street_name, struct speed_limits *limits_loc);
+void get_limits_info(struct speed_limits **global_limits);
+void insert_incidents_list(short event, char *street_name, char *username);
+void get_unread_events(char *client_response, int *incidents_cursor);
+
+pthread_mutex_t incidents_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main()
 {
@@ -52,10 +68,10 @@ int main()
 	int th_cnt = 0;
 	int server_d = configure_server(&server);
 	
-	struct speed_limits *global_limits[ROADS];
-	//get_limits_info(global_limits);
-	// get_map_info();
-	
+	incidents_list = (struct incidents *) malloc(sizeof(struct incidents));
+
+	get_limits_info(&global_limits);
+
 	CHECK(listen(server_d, 10) != -1, ListenErr);
 
 	while(1) {
@@ -82,6 +98,9 @@ static void *treat_client(void *arg)
 	th = *((struct thread_info *) arg);
 	pthread_detach(pthread_self());
 	
+	struct speed_limits limits_loc = *global_limits;
+	int incidents_cursor = incidents_list->nr;
+
 	int client_d = th.client_d;	
 	struct client_data user_info = {"", 0, 0, 0, 0}; 
 
@@ -200,17 +219,49 @@ static void *treat_client(void *arg)
 		}
 
 		if(parse_code == 12) {
-			double speed = (double) atof(parsed.args[1]);
+			// auto-message
+			if (!user_info.logged) {
+				strncpy(client_response, NoNotif, CLIENT_RESPONSE);
+			}
+			else 
+			{
+				double speed = (double)atof(parsed.args[1]);
+				char street_name[MAX_STR_NAME];
+
+				strcpy(street_name, parsed.args[2]);
+				for (int i = 3; i < parsed.args_nr; ++i)
+				{
+					strcat(street_name, " ");
+					strcat(street_name, parsed.args[i]);
+				}
+
+				printf("%f %s\n", speed, street_name);
+				check_speed(client_response, speed, street_name, &limits_loc);
+			}
+		}
+
+		if(parse_code == 13) {
+			// incident report
+			int event = atoi(parsed.args[1]);
 			char street_name[MAX_STR_NAME];
-			
+
 			strcpy(street_name, parsed.args[2]);
-			for(int i = 3; i < parsed.args_nr; ++i) {
+			for (int i = 3; i < parsed.args_nr; ++i) {
 				strcat(street_name, " ");
 				strcat(street_name, parsed.args[i]);
 			}
 
-			printf("%f %s\n", speed, street_name);
-			check_speed(client_response, speed, street_name);
+			insert_incidents_list(event, street_name, user_info.username);
+			strncpy(client_response, "The event reported by you was successfully saved.", CLIENT_RESPONSE);
+		}
+
+		if(parse_code == 14) {
+			// get-events automatic message 
+			if(!user_info.logged) {
+				strncpy(client_response, NoNotif, CLIENT_RESPONSE);
+			} else {
+				get_unread_events(client_response, &incidents_cursor);
+			}
 		}
 
 		int response_len = strlen(client_response);
@@ -475,6 +526,20 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 		// TO-DO make a separate check in the user_thread if the user doesnt type auto-message by hand :)))
 		assert(parsed->args_nr >= 3);
 		return 12;
+	}
+
+	if(!strncmp(command_name, "report", MAX_COMMAND_SIZE)) {
+		assert(parsed->args_nr >= 3);
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 13;	
+	}
+
+	if(!strncmp(command_name, "get-events", MAX_COMMAND_SIZE)) {
+		assert(parsed->args_nr == 1);
+		return 14;
 	}
 
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
@@ -832,6 +897,118 @@ void alter_subscribe_data(char *client_response, char *column_name, char *userna
 	sqlite3_close(db);
 }
 
-void check_speed(char *client_response, double speed, char *street_name) {
+void check_speed(char *client_response, double speed, char *street_name, struct speed_limits *limits_loc) 
+{
+	int id = 0;
+	while(id < limits_loc->nr && strncmp(street_name, limits_loc->street_names[id], MAX_STR_NAME)) {
+		id++;
+	}
 
+	if(id == limits_loc->nr) {
+		// normally shouldn't
+		strncpy(client_response, UnknownStreet, CLIENT_RESPONSE);
+		return;
+	}
+
+	if(limits_loc->limits[id] < speed) {
+		int delta = speed - limits_loc->limits[id];
+		snprintf(client_response, CLIENT_RESPONSE, "Warning! You are surpassing the speed limit on %s wih %d km/h!\n" 
+		"Your Speed - %d km/h. Legal Speed Limit - %d km/h.", street_name, delta, (int) speed, (int) limits_loc->limits[id]);
+	}
+	else {
+		snprintf(client_response, CLIENT_RESPONSE, "You are driving on %s according to the rules! Your current speed is %d km/h.\n"
+		"The speed limit on this street is %d km/h.", street_name, (int) speed, (int) limits_loc->limits[id]);
+	}
+}
+
+void get_limits_info(struct speed_limits **global_limits) 
+{
+	*global_limits = malloc(sizeof(struct speed_limits));
+	
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+	
+	int rc = sqlite3_open("Orasul_Chisinau.db", &db);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	char get_speed_limits[MAX_COMMAND_SIZE];
+	strncpy(get_speed_limits, "SELECT * FROM Speed_Limits NATURAL JOIN Streets", MAX_COMMAND_SIZE);
+	
+	printf("[S] Extracting data about speed limits: %s\n", get_speed_limits);
+	
+	rc = sqlite3_prepare_v2(db, get_speed_limits, -1, &stmt, 0);
+	DB_CHECK(!rc, sqlite3_errmsg(db));
+
+	rc = sqlite3_step(stmt);
+	while(rc == SQLITE_ROW) {
+		int ind = (*global_limits)->nr;
+		(*global_limits)->limits[ind] = sqlite3_column_double(stmt, 1);
+		strncpy((*global_limits)->street_names[ind], (const char *) sqlite3_column_text(stmt, 2), MAX_STR_NAME);
+		(*global_limits)->nr += 1;
+		rc = sqlite3_step(stmt);
+	}
+	DB_CHECK(rc == SQLITE_DONE, sqlite3_errmsg(db));
+
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+}
+
+void insert_incidents_list(short event, char *street_name, char *username) 
+{
+	pthread_mutex_lock(&incidents_mutex);
+
+	printf("[S] Insert %d event on %s street reported by user %s in the incidents_list\n", event, street_name, username);
+	
+	int ind = incidents_list->nr;
+	incidents_list->type[ind] = event;
+
+	strncpy(incidents_list->street[ind], street_name, MAX_STR_NAME);
+	strncpy(incidents_list->by_user[ind], username, MAX_CRED);
+
+	incidents_list->nr++;
+
+	pthread_mutex_unlock(&incidents_mutex);
+}
+
+void get_unread_events(char *client_response, int *incidents_cursor)
+{
+	pthread_mutex_lock(&incidents_mutex);
+
+	if(*incidents_cursor == incidents_list->nr) {
+		strncpy(client_response, NoNotif, CLIENT_RESPONSE);	
+	}
+	else 
+	{
+		printf("%d %d\n", incidents_list->nr, *incidents_cursor);
+		int i = *incidents_cursor;
+
+		short event_type = incidents_list->type[i];
+		char *street = incidents_list->street[i];
+
+		char *by_user = incidents_list->by_user[i];
+		char event_string[MAX_WORDS];
+		
+		switch (event_type) {
+			case 0:
+				strncpy(event_string, "was an accident", MAX_WORDS);
+				break;
+			case 1:
+				strncpy(event_string, "is a traffic jam", MAX_WORDS);
+				break;
+			case 2:
+				strncpy(event_string, "is a road reparation", MAX_WORDS);
+				break;
+			case 3:
+				strncpy(event_string, "is a police patrol", MAX_WORDS);
+				break;
+		}
+
+		snprintf(client_response, CLIENT_RESPONSE, "[New Notification] There %s on the %s street. Reported by %s.\n",
+					event_string, street, by_user
+			);
+
+		*incidents_cursor = *incidents_cursor + 1;
+	}	
+
+	pthread_mutex_unlock(&incidents_mutex);
 }
