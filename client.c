@@ -168,6 +168,7 @@ static void* update_thread(void *arg)
 			gps->speed++;
 		}
 	}
+
 	return(NULL);
 }
 
@@ -194,7 +195,7 @@ static void* user_thread(void *arg)
 		}
 
 		if (!strncmp(user_input, "quit", 4)) {
-			return (void *)0;
+			exit(0);
 		}
 
 		char client_response[CLIENT_RESPONSE];

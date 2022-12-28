@@ -25,6 +25,16 @@ struct incidents {
 	char by_user[MAX_INCIDENTS][MAX_CRED];
 };
 
+struct event_attrs {
+	int nr;
+	char street[MAX_INCIDENTS][MAX_STR_NAME];
+	int freq[MAX_INCIDENTS];
+};
+
+struct specific_incident {
+	struct event_attrs event[4];
+};
+
 struct incidents *incidents_list;
 
 static void *treat_client(void *arg);
@@ -54,13 +64,18 @@ void alter_subscribe_data(char *client_response, char *column_name, char *userna
 void check_speed(char *client_response, double speed, char *street_name, struct speed_limits *limits_loc);
 void get_limits_info(struct speed_limits **global_limits);
 void insert_incidents_list(short event, char *street_name, char *username);
-void get_unread_events(char *client_response, int *incidents_cursor);
+void get_unread_events(char *client_response, int *incidents_cursor, struct specific_incident *local_incidents);
+int find_street_pos(struct specific_incident *local_incidents, short event_type, char *street);
+void initialize_incidents(struct specific_incident *local_incidents);
+void insert_local_list(struct specific_incident *local_incidents, short event, char *street_name);
+void get_event_list(char *client_response, struct specific_incident *local_incidents, short event_type);
+void format_event_data(char *formatted_message, int *cursor, char *street_name, int freq,  int id);
 
 pthread_mutex_t incidents_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main()
 {
-
+	
 	struct sockaddr_in server;
 	struct sockaddr_in client;
 
@@ -69,6 +84,7 @@ int main()
 	int server_d = configure_server(&server);
 	
 	incidents_list = (struct incidents *) malloc(sizeof(struct incidents));
+	incidents_list->nr = 0;
 
 	get_limits_info(&global_limits);
 
@@ -101,6 +117,9 @@ static void *treat_client(void *arg)
 	struct speed_limits limits_loc = *global_limits;
 	int incidents_cursor = incidents_list->nr;
 
+	struct specific_incident local_incidents;
+	initialize_incidents(&local_incidents);
+
 	int client_d = th.client_d;	
 	struct client_data user_info = {"", 0, 0, 0, 0}; 
 
@@ -111,14 +130,14 @@ static void *treat_client(void *arg)
 	{
 		char client_command[MAX_COMMAND_SIZE];
 		char client_response[CLIENT_RESPONSE];
-		receive_message(client_d, client_command);
-
-		if(!strncmp(client_command, "quit", 4)) {
+		int code = receive_message(client_d, client_command);
+		
+		if(code <= 0) {
+			printf("treb de breakuit\n");
 			break;
 		}
 
 		struct command_info parsed;
-
 		char ErrorMsg[MAX_ERR_SIZE];
 		int parse_code = parse_command(client_command, &parsed, ErrorMsg, &user_info);
 
@@ -252,6 +271,7 @@ static void *treat_client(void *arg)
 			}
 
 			insert_incidents_list(event, street_name, user_info.username);
+			
 			strncpy(client_response, "The event reported by you was successfully saved.", CLIENT_RESPONSE);
 		}
 
@@ -260,12 +280,30 @@ static void *treat_client(void *arg)
 			if(!user_info.logged) {
 				strncpy(client_response, NoNotif, CLIENT_RESPONSE);
 			} else {
-				get_unread_events(client_response, &incidents_cursor);
+				get_unread_events(client_response, &incidents_cursor, &local_incidents);
 			}
 		}
 
+		if(parse_code == 15) {
+			get_event_list(client_response, &local_incidents, 3);
+		}
+		
+		if(parse_code == 16) {
+			get_event_list(client_response, &local_incidents, 1);
+		}
+
+		if(parse_code == 17) {
+			get_event_list(client_response, &local_incidents, 0);
+		}
+
+		if (parse_code == 18) {
+			get_event_list(client_response, &local_incidents, 2);
+		}
+
+
 		int response_len = strlen(client_response);
 		send_message(client_d, client_response, response_len);
+		
 	}	
 
 	close(client_d);
@@ -540,6 +578,54 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 	if(!strncmp(command_name, "get-events", MAX_COMMAND_SIZE)) {
 		assert(parsed->args_nr == 1);
 		return 14;
+	}
+
+	if(!strncmp(command_name, "get-police-info", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 15;
+	}
+
+	if (!strncmp(command_name, "get-jam-info", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 16;
+	}
+
+	if(!strncmp(command_name, "get-accidents-info", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 17;
+	}
+
+	if (!strncmp(command_name, "get-repair-info", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		if (!user_info->logged) {
+			strncpy(err, ShouldLog, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 18;
 	}
 
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
@@ -970,7 +1056,7 @@ void insert_incidents_list(short event, char *street_name, char *username)
 	pthread_mutex_unlock(&incidents_mutex);
 }
 
-void get_unread_events(char *client_response, int *incidents_cursor)
+void get_unread_events(char *client_response, int *incidents_cursor, struct specific_incident *local_incidents)
 {
 	pthread_mutex_lock(&incidents_mutex);
 
@@ -1007,8 +1093,117 @@ void get_unread_events(char *client_response, int *incidents_cursor)
 					event_string, street, by_user
 			);
 
+		insert_local_list(local_incidents, event_type, street);
+		
 		*incidents_cursor = *incidents_cursor + 1;
 	}	
 
 	pthread_mutex_unlock(&incidents_mutex);
+}
+
+void initialize_incidents(struct specific_incident *local_incidents)
+{
+	pthread_mutex_lock(&incidents_mutex);
+	
+	for(int i = 0; i < 4; ++i) {
+		local_incidents->event[i].nr = 0;
+	}
+
+	for(int i = 0; i < incidents_list->nr; i++) 
+	{	
+		short event_type = incidents_list->type[i];
+		char *street = incidents_list->street[i];
+
+		int street_pos = find_street_pos(local_incidents, event_type, street);
+		
+		if(street_pos == -1) {
+			int pos = local_incidents->event[event_type].nr;
+			strncpy(local_incidents->event[event_type].street[pos], street, MAX_STR_NAME);
+			local_incidents->event[event_type].freq[pos] = 1;
+			local_incidents->event[event_type].nr++;
+		}
+		else {
+			local_incidents->event[event_type].freq[street_pos]++;
+		}
+
+	}
+
+	pthread_mutex_unlock(&incidents_mutex);
+}
+
+int find_street_pos(struct specific_incident *local_incidents, short event_type, char *street) 
+{
+	for(int i = 0; i < local_incidents->event[event_type].nr; ++i) {
+		if(!strncmp(local_incidents->event[event_type].street[i], street, MAX_STR_NAME)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void insert_local_list(struct specific_incident *local_incidents, short event, char *street_name)
+{
+	int street_pos = find_street_pos(local_incidents, event, street_name);
+	
+	if(street_pos == -1) {
+		int pos = local_incidents->event[event].nr;
+		strncpy(local_incidents->event[event].street[pos], street_name, MAX_STR_NAME);
+		local_incidents->event[event].freq[pos] = 1;
+		local_incidents->event[event].nr++;
+	}
+	else {
+		local_incidents->event[event].freq[street_pos]++;
+	}
+}
+
+void get_event_list(char *client_response, struct specific_incident *local_incidents, short event_type)
+{
+	char event_string[MAX_WORDS];
+
+	switch(event_type) {
+		case 0: strncpy(event_string, "accidents", MAX_WORDS); break;
+		case 1: strncpy(event_string, "traffic jams", MAX_WORDS); break;
+		case 2: strncpy(event_string, "road repairs", MAX_WORDS); break;
+		case 3: strncpy(event_string, "police patrols", MAX_WORDS); break;
+	}
+
+	int nr = local_incidents->event[event_type].nr;
+	
+	if(nr == 0) {
+		snprintf(client_response, CLIENT_RESPONSE, "There are no %s registered by other users.", event_string);
+		return;
+	}
+
+	char formatted_message[CLIENT_RESPONSE];
+
+	snprintf(formatted_message, CLIENT_RESPONSE, "The following %s were reported by other users today:\n", event_string);
+	int cursor = strlen(formatted_message);
+
+	for(int i = 0; i < nr; ++i) {
+		char *street_name = local_incidents->event[event_type].street[i];
+		int frequency = local_incidents->event[event_type].freq[i];
+		format_event_data(formatted_message, &cursor, street_name, frequency, i);
+	}
+
+	int final_len = strlen(formatted_message) - 1;
+	
+	// redundant newlines
+	while(final_len >= 0 && formatted_message[final_len] == '\n') {
+		formatted_message[final_len] = '\0';
+		final_len--;
+	}
+
+	strncpy(client_response, formatted_message, CLIENT_RESPONSE);
+}
+
+void format_event_data(char *formatted_message, int *cursor, char *street_name, int freq,  int id)
+{
+	char atomic_data[CLIENT_RESPONSE];
+	snprintf(atomic_data, CLIENT_RESPONSE,
+			 "%d. On %s street [Reported by %d users]\n",
+			 id, street_name, freq);
+
+	int len_data = strlen(atomic_data);
+	strncpy(formatted_message + *cursor, atomic_data, CLIENT_RESPONSE - *cursor);
+	*cursor += len_data;
 }

@@ -37,8 +37,8 @@
     if (!(condition))             \
     {                             \
         perror(message);          \
-        exit(EXIT_FAILURE);       \
-    }
+        exit(0);                  \
+    }                             \
 
 #define DB_CHECK(condition, message)                      \
     if (!(condition))                                     \
