@@ -111,20 +111,23 @@ int read_from_user(int fd, char *buff) {
     return i;
 }
 
-void send_message(int fd, char *buff, int len) {
+void send_message(int fd, char *buff, int len) 
+{
     CHECK(write(fd, &len, sizeof(int)) != -1, "Error at write()");
     CHECK(write(fd, buff, len) != -1, "Error at write()");
 }
 
-int receive_message(int fd, char *buff) {
-    int len;
+int receive_message(int fd, char *buff) 
+{
+    int len = 0;
     CHECK(read(fd, &len, sizeof(int)) != -1, "Error at read()");
     CHECK(read(fd, buff, len) != -1, "Error at read()");
     buff[len] = '\0';
     return len;
 }
 
-void add_edge(struct node **group, int vec, int dist, char *str_name) {
+void add_edge(struct node **group, int vec, int dist, char *str_name) 
+{
     struct node *obj = malloc(sizeof(struct node));
     obj->cross_id = vec;
     obj->distance = dist;
@@ -133,7 +136,8 @@ void add_edge(struct node **group, int vec, int dist, char *str_name) {
     *group = obj;
 }
 
-static int get_map(void *data, int argc, char **argv, char **col_name) {
+static int get_map(void *data, int argc, char **argv, char **col_name) 
+{
     struct city_map *cmap = *((struct city_map **)data);
     int u = atoi(argv[1]);
     int v = atoi(argv[2]);
@@ -142,7 +146,8 @@ static int get_map(void *data, int argc, char **argv, char **col_name) {
     return 0;
 }
 
-void get_map_info(struct city_map **map) {
+void get_map_info(struct city_map **map) 
+{
     sqlite3 *db;
     *map = (struct city_map *) malloc(sizeof(struct city_map));
     int rc = sqlite3_open("Orasul_Chisinau.db", &db);

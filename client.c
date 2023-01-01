@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 
 	void *thread_rv;
 	pthread_join(thread_pool[0], &thread_rv);
-	int ret_val = (int) thread_rv;
+	int ret_val =  *((int*)thread_rv);
 
 	if(ret_val == 0) {
 		printf("You have exited the application. Goodbye.\n");
@@ -90,7 +90,6 @@ static void* update_thread(void *arg)
 	struct thread_info th;
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
-	int server_d = th.server_d;
 	
 	srand(time(0));
 

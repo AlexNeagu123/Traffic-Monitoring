@@ -130,10 +130,10 @@ static void *treat_client(void *arg)
 	{
 		char client_command[MAX_COMMAND_SIZE];
 		char client_response[CLIENT_RESPONSE];
+		
 		int code = receive_message(client_d, client_command);
 		
-		if(code <= 0) {
-			printf("treb de breakuit\n");
+		if(code == 0) {
 			break;
 		}
 
@@ -1089,7 +1089,7 @@ void get_unread_events(char *client_response, int *incidents_cursor, struct spec
 				break;
 		}
 
-		snprintf(client_response, CLIENT_RESPONSE, "[New Notification] There %s on the %s street. Reported by %s.\n",
+		snprintf(client_response, CLIENT_RESPONSE, "[New Notification] There %s on the %s street. Reported by %s.",
 					event_string, street, by_user
 			);
 
