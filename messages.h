@@ -1,4 +1,4 @@
-const char *ValidCommand = "Please enter a valid command!";
+const char *ValidCommand = "The command you have typed is not valid! Type 'help' to see all the available commands .";
 const char *TakenUsername = "Sign-up Error! Username is already taken";
 const char *Success = "Success";
 const char *AlreadyLogged = "You can't perform this action when logged in!";
@@ -26,4 +26,41 @@ const char* AlreadyWeatherSub = "You are already subscribed to the weather chann
 const char *UnsubMessage = "Your unsubscription request has been processed. We are sad to see you go.";
 const char *SubMessage = "Your subscription request has been accepted. Welcome to the channel!";
 const char *UnknownStreet = "The street you are currently on is not find in our database.";
-const char *NoNotif = "No notification";
+const char *NoNotif = "The inbox is empty."; 
+
+
+
+const char *Help = "Faze is an application that consists of three, very important parts:\n" 
+"1. A tracker that is constantly telling your current location and traveling speed. "
+"If you are surpassing the speed limit, the message will be coloured red, otherwise it will be green.\n" 
+"2. A notification thread that is constantly showing you details about the most recent"
+" event reported by any user. These messages will be coloured in yellow.\n" 
+"3. A thread that constantly listens for some specific commands typed by the user. A command should be typed after the -> symbol and should be one of the following:\n"
+"3.1. sign-up - The user might create an account on the application." 
+"This command will be followed by a prompt, asking for details such as the first name, last name, the desired username, desired password, and whether or not the user wants to subscribe to channels such as sports news, weather condition, and pecos information.\n"
+"3.2. login username - Logs the user into the application. This command is followed by a password prompt.\n"
+"3.3. report evcode - Reports an event codified by evcode that is taking place on the street you are currently located. The events are codified as follows:\n"
+        "evcode = 0 -> Accident\n"
+        "evcode = 1 -> Traffic Jam\n"
+        "evcode = 2 -> Road Repair\n"
+        "evcode = 3 -> Police Patrol\n"
+"3.4. get-police-info - Prints information about every police patrol reported by other users.\n"
+"3.5. get-accident-info - Prints information about every accident that happened in the last hour.\n"
+"3.6. get-repair-info - Prints information about every road that is being repaired.\n"
+"3.7. get-jam-info - Prints information about every traffic jam recorded in the last hour.\n"
+"3.8. get-sports-info option - For users who are subscribed to the sports channel, it prints important news about a sport specified by the option argument as follows:\n"
+        "option missing -> All Sports\n" 
+        "option = 1 -> Football\n"
+        "option = 2 -> Basketball\n" 
+        "option = 3 -> Tennis\n"
+"3.9. get-weather-info date - For users who are subscribed to the weather channel, it prints information about the forecasted weather for the specified date.\n"
+"3.10. get-peco-info - For users who are subscribed to the peco channel, it prints information about all available filling stations, in increasing order of travel distances.\n"
+"3.11. subscribe-peco - Subscribe to the peco channel.\n"
+"3.12. subscribe-weather - Subscribe to the weather channel.\n"
+"3.13. subscribe-sports - Subscribe to the sports channel.\n"
+"3.14. unsubscribe-peco - Terminate subscription to the peco channel.\n"
+"3.15. unsubscribe-weather - Terminate subscription to the weather channel.\n"
+"3.16. unsubscribe-sports - Terminate subscription to the sports channel.\n"
+"3.17. logout - log out the user from the application.\n"
+"3.18. quit - close the application";
+

@@ -24,7 +24,7 @@
 #define MAX_WORDS 100 
 #define CTHREADS 5
 #define MAX_COMMAND_SIZE 1024
-#define CLIENT_RESPONSE 1024
+#define CLIENT_RESPONSE 5000
 #define MAX_NAME  18
 #define SIGN_QUEST 7
 #define MAX_ERR_SIZE 512
@@ -83,12 +83,12 @@ struct Event {
 };
 
 const char *sign_queries[SIGN_QUEST] = {
-        "-> First Name: ", "-> Last Name: ", "-> Username: ", "-> Password: ",
-        "-> Subscribe To Peco Channel? [y/n]: ", "-> Subscribe To Sports Channel? [y/n]: ",
-        "-> Subscribe To Weather Channel? [y/n]: "
+        "\033[34m->\033[0m First Name: ", "\033[34m->\033[0m Last Name: ", "\033[34m->\033[0m Username: ", "\033[34m->\033[0m Password: ",
+        "\033[34m->\033[0m Subscribe To Peco Channel? [y/n]: ", "\033[34m->\033[0m Subscribe To Sports Channel? [y/n]: ",
+        "\033[34m->\033[0m Subscribe To Weather Channel? [y/n]: "
     };
 
-const char *password_query = "-> password: ";
+const char *password_query = "\033[34m->\033[0m password: ";
 const char *ServerIP = "127.0.0.1";
 const char *map_qry_statement = "SELECT * FROM Roads NATURAL JOIN Streets";
 const char *data = "Callback Function Call";

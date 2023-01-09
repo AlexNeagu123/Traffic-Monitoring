@@ -13,6 +13,7 @@ struct thread_info {
 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ansi_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int server_info(struct sockaddr_in *server);
 void signup_prompt(char *buff, int *len);
@@ -33,12 +34,13 @@ short is_report(char *buff, int len);
 short valid_report(char *buff, int len);
 void format_report(char *user_input, int *len, char *street_name);
 short check_reserved(char *user_input, int len);
+short check_login(char *client_response, int len);
+short check_logout(char *client_response, int len); 
 
 int main(int argc, char **argv) 
 {
 	struct sockaddr_in server;
 	int server_d = server_info(&server);
-	printf("[C] M-am conectat la server\n");
 
 	pthread_t thread_pool[CTHREADS];
 	struct thread_info *th[4];
@@ -178,12 +180,12 @@ static void* user_thread(void *arg)
 
 	struct GPS *gps = th.client_gps;
 	int server_d = th.server_d;
-	
+	int LOGGED = 0;
 	// printf("Sunt pe threadul: %d\n", th.id);
 
 	while(1) {
 
-		printf("-> ");
+		printf("\033[34m->\033[0m ");
 		fflush(stdout);
 
 		char user_input[MAX_COMMAND_SIZE];
@@ -205,10 +207,18 @@ static void* user_thread(void *arg)
 		}
 
 		if (!strcmp(user_input, "sign-up")) {
+			if(LOGGED) {
+				strncpy(client_response, AlreadyLogged, CLIENT_RESPONSE);
+				goto print_msg;
+			}
 			signup_prompt(user_input, &len);
 		}
 		
 		if (is_login(user_input, len)) {
+			if(LOGGED) {
+				strncpy(client_response, AlreadyLogged, CLIENT_RESPONSE);
+				goto print_msg;
+			}
 			password_prompt(user_input, &len);
 		}
 
@@ -224,9 +234,23 @@ static void* user_thread(void *arg)
 
 		ask_receive_from_server(server_d, user_input, len, client_response);
 		
+		int resp_len = strlen(client_response);
+		
+		if(check_login(client_response, resp_len)) {
+			LOGGED = 1;
+		}
+		if(check_logout(client_response, resp_len)) {
+			LOGGED = 0;
+		}
+
 		print_msg:
-		printf("Serverul mi-a raspuns cu %s\n", client_response);
-	
+		
+		if(LOGGED) {
+			printf("%s\n\n\n", client_response);
+		}
+		else {
+			printf("%s\n", client_response);
+		}
 	}
 
 	return (void *)1;
@@ -244,16 +268,28 @@ static void* warn_thread(void *arg)
 	while(1) 
 	{
 		sleep(1);
-
 		char auto_command[MAX_COMMAND_SIZE];
 		snprintf(auto_command, MAX_COMMAND_SIZE, "auto-message %f %s", gps->speed, gps->street_name);		
 		int comm_len = strlen(auto_command);
 
 		char client_response[CLIENT_RESPONSE];
 		ask_receive_from_server(server_d, auto_command, comm_len, client_response);
-		// if (strncmp(client_response, NoNotif, CLIENT_RESPONSE)) {
-		// 	printf("Serverul a raspuns cu %s\n", client_response);
-		// }
+
+		if (strncmp(client_response, ShouldLog, CLIENT_RESPONSE)) {
+			pthread_mutex_lock(&ansi_mutex);
+			// save cursor position
+			printf("\033[s");
+
+			switch(client_response[0]) {
+				case 'W': printf("\033[2A\033[K\033[31m\r%s\033[0m", client_response); break;
+				default: printf("\033[2A\033[K\033[32m\r%s\033[0m", client_response); break;
+			}
+
+			// return to the cursor position
+			printf("\033[u");
+			fflush(stdout);	
+			pthread_mutex_unlock(&ansi_mutex);
+		}
 	}
 
 	return(NULL);
@@ -265,10 +301,14 @@ static void* notif_thread(void *arg)
 	th = *((struct thread_info *)arg);
 	pthread_detach(pthread_self());
 	int server_d = th.server_d;
-	//printf("Sunt pe threadul: %d\n", th.id);
-	while(1) {
-		sleep(5);
+	char notif_buffer[CLIENT_RESPONSE];
 
+	strncpy(notif_buffer, NoNotif, CLIENT_RESPONSE);
+	//printf("Sunt pe threadul: %d\n", th.id);
+
+	while(1) 
+	{
+		sleep(1);
 		char get_incidents_command[MAX_COMMAND_SIZE];
 		strncpy(get_incidents_command, "get-events", MAX_COMMAND_SIZE);
 		int comm_len = strlen(get_incidents_command);
@@ -276,8 +316,20 @@ static void* notif_thread(void *arg)
 		char client_response[CLIENT_RESPONSE];
 		ask_receive_from_server(server_d, get_incidents_command, comm_len, client_response);
 
-		if(strncmp(client_response, NoNotif, CLIENT_RESPONSE)) {
-			printf("Serverul a raspuns cu %s\n", client_response);
+		if(strncmp(client_response, ShouldLog, CLIENT_RESPONSE)) {
+			if(strncmp(client_response, NoNotif, CLIENT_RESPONSE)) {
+				strncpy(notif_buffer, client_response, CLIENT_RESPONSE);
+			}
+
+			pthread_mutex_lock(&ansi_mutex);
+			printf("\033[s");
+			
+			printf("\033[A\033[K\033[33m\r%s\033[0m", notif_buffer);
+			
+			printf("\033[u");
+			fflush(stdout);	
+
+			pthread_mutex_unlock(&ansi_mutex);
 		}
 	}
 
@@ -421,4 +473,14 @@ short check_reserved(char *user_input, int len) {
 	strncpy(cpy, user_input, len + 1);
 	char *token = strtok(cpy, " ");
 	return (!strcmp(token, "auto-message") || !strcmp(token, "get-events"));
+}
+
+short check_login(char *client_response, int len) 
+{
+	return (strstr(client_response, "Welcome To Faze") != NULL);
+}
+
+short check_logout(char *client_response, int len) 
+{
+	return (strstr(client_response, "Goodbye") != NULL);
 }

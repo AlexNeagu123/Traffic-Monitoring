@@ -153,7 +153,7 @@ static void *treat_client(void *arg)
 
 		if(parse_code == 1) {
 			user_info.logged = 1;
-			snprintf(client_response, CLIENT_RESPONSE, "Welcome To Faze, %s!", user_info.username);
+			snprintf(client_response, CLIENT_RESPONSE, "Welcome To Faze, %s.", user_info.username);
 		}
 		
 		if(parse_code == 2) {
@@ -240,7 +240,7 @@ static void *treat_client(void *arg)
 		if(parse_code == 12) {
 			// auto-message
 			if (!user_info.logged) {
-				strncpy(client_response, NoNotif, CLIENT_RESPONSE);
+				strncpy(client_response, ShouldLog, CLIENT_RESPONSE);
 			}
 			else 
 			{
@@ -254,7 +254,7 @@ static void *treat_client(void *arg)
 					strcat(street_name, parsed.args[i]);
 				}
 
-				printf("%f %s\n", speed, street_name);
+				// printf("%f %s\n", speed, street_name);
 				check_speed(client_response, speed, street_name, &limits_loc);
 			}
 		}
@@ -278,7 +278,7 @@ static void *treat_client(void *arg)
 		if(parse_code == 14) {
 			// get-events automatic message 
 			if(!user_info.logged) {
-				strncpy(client_response, NoNotif, CLIENT_RESPONSE);
+				strncpy(client_response, ShouldLog, CLIENT_RESPONSE);
 			} else {
 				get_unread_events(client_response, &incidents_cursor, &local_incidents);
 			}
@@ -300,6 +300,9 @@ static void *treat_client(void *arg)
 			get_event_list(client_response, &local_incidents, 2);
 		}
 
+		if(parse_code == 19) {
+			strncpy(client_response, Help, CLIENT_RESPONSE);
+		}
 
 		int response_len = strlen(client_response);
 		send_message(client_d, client_response, response_len);
@@ -355,6 +358,10 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 	if(!strncmp(command_name, "sign-up", MAX_COMMAND_SIZE)) {
 		if (user_info->logged) {
 			strncpy(err, AlreadyLogged, MAX_ERR_SIZE);
+			return -1;
+		}
+		if(parsed->args_nr != 8) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
 			return -1;
 		}
 		if(!verify_username(parsed->args[3])) {
@@ -628,6 +635,14 @@ int parse_command(char *command, struct command_info *parsed, char *err, struct 
 		return 18;
 	}
 
+	if (!strncmp(command_name, "help", MAX_COMMAND_SIZE)) {
+		if (parsed->args_nr != 1) {
+			strncpy(err, ValidCommand, MAX_ERR_SIZE);
+			return -1;
+		}
+		return 19;
+	}
+
 	strncpy(err, ValidCommand, MAX_ERR_SIZE);
 	return -1;
 }
@@ -684,10 +699,11 @@ short verify_credentials(struct user_creds *login_credentials, struct client_dat
 	if(return_flag) {
 		const char *username = (const char *) sqlite3_column_text(stmt, 3);
 		short sub_peco = sqlite3_column_int(stmt, 5);
-		short sub_sports = sqlite3_column_int(stmt, 6);
-		short sub_weather = sqlite3_column_int(stmt, 7);
-		
+		short sub_weather = sqlite3_column_int(stmt, 6);
+		short sub_sports = sqlite3_column_int(stmt, 7);
+
 		strncpy(user_info->username, username, MAX_CRED);
+		
 		user_info->peco_sub = sub_peco;
 		user_info->sport_sub = sub_sports;
 		user_info->weather_sub = sub_weather;
@@ -998,11 +1014,11 @@ void check_speed(char *client_response, double speed, char *street_name, struct 
 
 	if(limits_loc->limits[id] < speed) {
 		int delta = speed - limits_loc->limits[id];
-		snprintf(client_response, CLIENT_RESPONSE, "Warning! You are surpassing the speed limit on %s wih %d km/h!\n" 
+		snprintf(client_response, CLIENT_RESPONSE, "Warning! You are surpassing the speed limit on %s wih %d km/h! " 
 		"Your Speed - %d km/h. Legal Speed Limit - %d km/h.", street_name, delta, (int) speed, (int) limits_loc->limits[id]);
 	}
 	else {
-		snprintf(client_response, CLIENT_RESPONSE, "You are driving on %s according to the rules! Your current speed is %d km/h.\n"
+		snprintf(client_response, CLIENT_RESPONSE, "You are driving on %s according to the rules! Your current speed is %d km/h. "
 		"The speed limit on this street is %d km/h.", street_name, (int) speed, (int) limits_loc->limits[id]);
 	}
 }
@@ -1065,7 +1081,7 @@ void get_unread_events(char *client_response, int *incidents_cursor, struct spec
 	}
 	else 
 	{
-		printf("%d %d\n", incidents_list->nr, *incidents_cursor);
+		// printf("%d %d\n", incidents_list->nr, *incidents_cursor);
 		int i = *incidents_cursor;
 
 		short event_type = incidents_list->type[i];
