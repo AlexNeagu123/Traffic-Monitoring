@@ -244,6 +244,8 @@ static void* user_thread(void *arg)
 		}
 
 		print_msg:
+
+		pthread_mutex_lock(&ansi_mutex);
 		
 		if(LOGGED) {
 			printf("%s\n\n\n", client_response);
@@ -251,6 +253,8 @@ static void* user_thread(void *arg)
 		else {
 			printf("%s\n", client_response);
 		}
+
+		pthread_mutex_unlock(&ansi_mutex);
 	}
 
 	return (void *)1;

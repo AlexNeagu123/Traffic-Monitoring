@@ -726,8 +726,8 @@ void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_c
 	strncpy(new_user->password, parsed_command->args[4], MAX_CRED);
 	
 	new_user->peco_sub = (!strcmp(parsed_command->args[5], "y") ? 1 : 0);
-	new_user->sport_sub = (!strcmp(parsed_command->args[6], "y") ? 1 : 0);
-	new_user->weather_sub = (!strcmp(parsed_command->args[7], "y") ? 1 : 0);
+	new_user->weather_sub = (!strcmp(parsed_command->args[6], "y") ? 1 : 0);
+	new_user->sport_sub = (!strcmp(parsed_command->args[7], "y") ? 1 : 0);
 }
 
 void insert_user_db(struct auth_creds *new_user, char *client_response) 
