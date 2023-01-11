@@ -15,6 +15,7 @@
 #include <sqlite3.h>
 #include <arpa/inet.h>
 #include <time.h>  
+#include <fcntl.h>
 #include "messages.h"
 
 #define PORT 2610
@@ -109,24 +110,6 @@ int read_from_user(int fd, char *buff) {
     }
     *(buff+i) = '\0';
     return i;
-}
-
-void send_message(int fd, char *buff, int len) 
-{
-    CHECK(write(fd, &len, sizeof(int)) != -1, "Error at write()");
-    CHECK(write(fd, buff, len) != -1, "Error at write()");
-}
-
-int receive_message(int fd, char *buff) 
-{
-    int len = 0, rt;
-    CHECK((rt = read(fd, &len, sizeof(int))) != -1, "Error at read()");
-    if(!rt) {
-        len = 0;
-    }
-    CHECK(read(fd, buff, len) != -1, "Error at read()");
-    buff[len] = '\0';
-    return len;
 }
 
 void add_edge(struct node **group, int vec, int dist, char *str_name) 

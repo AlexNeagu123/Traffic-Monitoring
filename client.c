@@ -37,6 +37,9 @@ short check_reserved(char *user_input, int len);
 short check_login(char *client_response, int len);
 short check_logout(char *client_response, int len); 
 
+int receive_message(int fd, char *buff);
+void send_message(int fd, char *buff, int len);
+
 int main(int argc, char **argv) 
 {
 	struct sockaddr_in server;
@@ -487,4 +490,22 @@ short check_login(char *client_response, int len)
 short check_logout(char *client_response, int len) 
 {
 	return (strstr(client_response, "Goodbye") != NULL);
+}
+
+int receive_message(int fd, char *buff) 
+{
+    int len = 0, rt;
+    CHECK((rt = read(fd, &len, sizeof(int))) != -1, "Error at read()");
+    if(!rt) {
+        len = 0;
+    }
+    CHECK(read(fd, buff, len) != -1, "Error at read()");
+    buff[len] = '\0';
+    return len;
+}
+
+void send_message(int fd, char *buff, int len) 
+{
+    CHECK(write(fd, &len, sizeof(int)) != -1, "Error at write()");
+    CHECK(write(fd, buff, len) != -1, "Error at write()");
 }

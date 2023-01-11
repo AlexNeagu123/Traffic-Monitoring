@@ -38,6 +38,10 @@ struct specific_incident {
 struct incidents *incidents_list;
 
 static void *treat_client(void *arg);
+
+int receive_message(int fd, char *buff);
+int send_message(int fd, char *buff, int len);
+
 void fill_auth_struct(struct auth_creds *new_user, struct command_info *parsed_command);
 
 int configure_server(struct sockaddr_in *server);
@@ -76,6 +80,7 @@ pthread_mutex_t incidents_mutex = PTHREAD_MUTEX_INITIALIZER;
 int main()
 {
 	
+	signal(SIGPIPE, SIG_IGN);
 	struct sockaddr_in server;
 	struct sockaddr_in client;
 
@@ -306,8 +311,10 @@ static void *treat_client(void *arg)
 		}
 
 		int response_len = strlen(client_response);
-		send_message(client_d, client_response, response_len);
-		
+		int send_ret = send_message(client_d, client_response, response_len);
+		if(send_ret == -1) {
+			break;
+		}
 	}	
 
 	close(client_d);
@@ -1223,4 +1230,37 @@ void format_event_data(char *formatted_message, int *cursor, char *street_name, 
 	int len_data = strlen(atomic_data);
 	strncpy(formatted_message + *cursor, atomic_data, CLIENT_RESPONSE - *cursor);
 	*cursor += len_data;
+}
+
+int receive_message(int fd, char *buff) 
+{
+    int len = 0, rt;
+    rt = read(fd, &len, sizeof(int));
+	
+	if(rt == -1) {
+		return 0; 
+	}
+	
+	if(!rt) {
+        len = 0;
+    }
+    
+	rt = read(fd, buff, len);
+    if(rt == -1) {
+		return 0;
+	}
+
+	buff[len] = '\0';
+    return len;
+}
+
+int send_message(int fd, char *buff, int len) 
+{
+	// if a broken pipe occurs, report it 
+    int rt = write(fd, &len, sizeof(int));
+    if(rt == -1) {
+        return -1;
+    }
+    rt = write(fd, buff, len);
+    return rt;
 }
