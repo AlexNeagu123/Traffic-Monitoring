@@ -195,7 +195,7 @@ static void* user_thread(void *arg)
 			continue;
 		}
 
-		if (!strncmp(user_input, "quit", 4)) {
+		if (!strncmp(user_input, "quit", MAX_COMMAND_SIZE)) {
 			exit(0);
 		}
 
@@ -397,7 +397,7 @@ short is_login(char *buff, int len)
 	char cpy[len + 1];
 	strncpy(cpy, buff, len);
 	char *token = strtok(cpy, " ");
-	return !strncmp(token, "login", 5) ? 1 : 0;  
+	return !strcmp(token, "login") ? 1 : 0;  
 }
 
 short valid_username(char *usr, int len) {

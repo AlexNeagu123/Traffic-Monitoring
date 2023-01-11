@@ -1,4 +1,4 @@
-const char *ValidCommand = "The command you have typed is not valid! Type 'help' to see all the available commands .";
+const char *ValidCommand = "The command you have typed is not valid! Type 'help' to see all the available commands.";
 const char *TakenUsername = "Sign-up Error! Username is already taken";
 const char *Success = "Success";
 const char *AlreadyLogged = "You can't perform this action when logged in!";
@@ -45,7 +45,7 @@ const char *Help = "Faze is an application that consists of three, very importan
         "evcode = 2 -> Road Repair\n"
         "evcode = 3 -> Police Patrol\n"
 "3.4. get-police-info - Prints information about every police patrol reported by other users.\n"
-"3.5. get-accident-info - Prints information about every accident that happened in the last hour.\n"
+"3.5. get-accidents-info - Prints information about every accident that happened in the last hour.\n"
 "3.6. get-repair-info - Prints information about every road that is being repaired.\n"
 "3.7. get-jam-info - Prints information about every traffic jam recorded in the last hour.\n"
 "3.8. get-sports-info option - For users who are subscribed to the sports channel, it prints important news about a sport specified by the option argument as follows:\n"
@@ -53,8 +53,10 @@ const char *Help = "Faze is an application that consists of three, very importan
         "option = 1 -> Football\n"
         "option = 2 -> Basketball\n" 
         "option = 3 -> Tennis\n"
-"3.9. get-weather-info date - For users who are subscribed to the weather channel, it prints information about the forecasted weather for the specified date.\n"
-"3.10. get-peco-info - For users who are subscribed to the peco channel, it prints information about all available filling stations, in increasing order of travel distances.\n"
+"3.9. get-weather-info [date] - For users who are subscribed to the weather channel, it prints information about each date in the database. Optionally, " 
+"a date argument might be provided to get the weather on a specified date.\n"
+"3.10. get-peco-info [name] - For users who are subscribed to the peco channel, it prints information about all available filling stations. Optionally a name argument might be provided "
+"to filter the filling stations available by name.\n"
 "3.11. subscribe-peco - Subscribe to the peco channel.\n"
 "3.12. subscribe-weather - Subscribe to the weather channel.\n"
 "3.13. subscribe-sports - Subscribe to the sports channel.\n"

@@ -119,8 +119,11 @@ void send_message(int fd, char *buff, int len)
 
 int receive_message(int fd, char *buff) 
 {
-    int len = 0;
-    CHECK(read(fd, &len, sizeof(int)) != -1, "Error at read()");
+    int len = 0, rt;
+    CHECK((rt = read(fd, &len, sizeof(int))) != -1, "Error at read()");
+    if(!rt) {
+        len = 0;
+    }
     CHECK(read(fd, buff, len) != -1, "Error at read()");
     buff[len] = '\0';
     return len;

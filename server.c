@@ -94,8 +94,8 @@ int main()
 		struct thread_info *th;
 		socklen_t len = sizeof(client);
 
-		printf("[S] Waiting at port %d ...\n", PORT);
-		fflush(stdout);
+		// printf("[S] Waiting at port %d ...\n", PORT);
+		// fflush(stdout);
 		
 		int client_d = accept(server_d, (struct sockaddr *) &client, &len);
 		CHECK(client_d != -1, AcceptErr);
@@ -123,8 +123,8 @@ static void *treat_client(void *arg)
 	int client_d = th.client_d;	
 	struct client_data user_info = {"", 0, 0, 0, 0}; 
 
-	printf("[S] Am primit client\n");
-	fflush(stdout);
+	// printf("[S] Am primit client\n");
+	// fflush(stdout);
 
 	while(1) 
 	{
@@ -160,8 +160,9 @@ static void *treat_client(void *arg)
 			// get-sports-info
 			char option = '?';
 			if(parsed.args_nr == 2) {
-				assert(strlen(parsed.args[1]) == 1);
-				option = parsed.args[1][0];
+				if(strlen(parsed.args[1]) == 1) {
+					option = parsed.args[1][0];
+				}
 			}
 			get_sports_info(client_response, option);	
 		}
